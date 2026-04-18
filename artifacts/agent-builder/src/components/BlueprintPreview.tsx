@@ -75,10 +75,7 @@ export function BlueprintPreview({
   return (
     <div className="h-full w-full flex flex-col bg-background overflow-hidden">
       <div className="px-6 py-5 border-b border-border shrink-0">
-        <div className="text-xs uppercase tracking-wider text-muted-foreground">
-          Your assistant
-        </div>
-        <div className="text-2xl font-semibold mt-1 font-display">{blueprint.name}</div>
+        <div className="text-2xl font-semibold font-display">{blueprint.name}</div>
         {blueprint.role_summary ? (
           <div className="text-sm text-muted-foreground mt-1">
             {blueprint.role_summary}
