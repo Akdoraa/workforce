@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Agent } from "@/lib/store";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, Bot, User, Sparkles, Check, Loader2 } from "lucide-react";
+import { ArrowUp, Bot, User, Check, Loader2 } from "lucide-react";
+import logoUrl from "@assets/2_1776495443204.png";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 interface ChatAreaProps {
@@ -61,8 +62,12 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
     return (
       <div className="flex-1 flex flex-col h-full items-center justify-center px-6">
         <div className="w-full max-w-2xl flex flex-col items-center text-center space-y-6">
-          <div className="h-14 w-14 rounded-2xl bg-card border border-border flex items-center justify-center">
-            <Sparkles className="h-7 w-7 text-primary" />
+          <div className="h-14 w-14 rounded-2xl bg-card border border-border flex items-center justify-center p-2">
+            <img
+              src={logoUrl}
+              alt="Logo"
+              className="h-full w-full object-contain"
+            />
           </div>
           <div className="space-y-2">
             <h1 className="text-3xl font-semibold tracking-tight">
@@ -97,8 +102,8 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
   return (
     <div className="flex-1 flex flex-col h-full relative min-w-0">
       <div className="px-4 py-3 border-b border-border flex items-center gap-2 shrink-0">
-        <div className="h-7 w-7 rounded-lg bg-card border border-border flex items-center justify-center">
-          <Sparkles className="h-3.5 w-3.5 text-primary" />
+        <div className="h-7 w-7 rounded-lg bg-card border border-border flex items-center justify-center p-1">
+          <img src={logoUrl} alt="Logo" className="h-full w-full object-contain" />
         </div>
         <div className="text-sm font-medium truncate">
           {agent?.name ?? "Agent"}
