@@ -51,3 +51,6 @@ Thumbs.db
 # Runtime state from local dev/test deploys
 artifacts/api-server/.data/
 
+
+# api-server local runtime state
+artifacts/api-server/.data/
