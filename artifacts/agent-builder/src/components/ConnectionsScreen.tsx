@@ -24,17 +24,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-// Replit's account-level integrations page. The legacy
-// `replit.com/account#connections` URL falls back to the profile tab and never
-// shows the connectors list, so we send users to the integrations page
-// instead. When we know the connector slug we deep-link straight to that
-// connector so the user can authorize in one click.
-const CONNECTOR_AUTH_BASE = "https://replit.com/integrations";
+// Replit's settings Integrations tab is the only page that actually lets
+// users sign in to a connector. The `replit.com/integrations/<connector>`
+// URLs 404 or only manage existing connections, so we always send users to
+// the settings tab where every connector has a Sign in / Manage button.
+const CONNECTOR_AUTH_URL =
+  "https://replit.com/~?settings.show=true&settings.tab=integrations";
 
-function authUrlFor(connectorName?: string | null): string {
-  return connectorName
-    ? `${CONNECTOR_AUTH_BASE}/${encodeURIComponent(connectorName)}`
-    : CONNECTOR_AUTH_BASE;
+function authUrlFor(_connectorName?: string | null): string {
+  return CONNECTOR_AUTH_URL;
 }
 
 interface Props {
