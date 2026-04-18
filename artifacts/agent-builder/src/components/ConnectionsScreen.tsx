@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import {
   fetchConnections,
-  refreshConnection,
+  refreshAllConnections,
   type ConnectionStatus,
 } from "@/lib/agent-api";
 import { BRAND_ICONS } from "@/lib/brand-icons";
@@ -69,12 +69,20 @@ export function ConnectionsScreen({ highlightId, onHighlightConsumed }: Props) {
 
   useEffect(() => {
     let mounted = true;
-    const refresh = async () => {
+    // First load can use the lightly-cached read; subsequent polls bypass
+    // the server cache so external changes (e.g. a connection toggled in
+    // another tab) show up within seconds instead of waiting for the 60s
+    // TTL.
+    const initial = async () => {
       const list = await fetchConnections();
       if (mounted) setConnections(list);
     };
-    void refresh();
-    const id = setInterval(refresh, 5000);
+    const poll = async () => {
+      const list = await fetchConnections({ fresh: true });
+      if (mounted) setConnections(list);
+    };
+    void initial();
+    const id = setInterval(poll, 5000);
     return () => {
       mounted = false;
       clearInterval(id);
@@ -96,12 +104,15 @@ export function ConnectionsScreen({ highlightId, onHighlightConsumed }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightId, Boolean(connections)]);
 
-  const refreshOne = async (integrationId: string) => {
-    const updated = await refreshConnection(integrationId);
-    if (!updated) return;
-    setConnections((prev) =>
-      (prev ?? []).map((c) => (c.id === integrationId ? updated : c)),
-    );
+  const refreshAll = async () => {
+    // The Replit settings popup is a single page where the user can change
+    // *any* connection — connect new ones, disconnect existing ones, etc.
+    // Refreshing only the row whose button they originally clicked would
+    // leave every other row showing stale state for up to 60s, so we
+    // re-sync the whole list in one call.
+    const list = await refreshAllConnections();
+    if (list.length === 0) return;
+    setConnections(list);
   };
 
   const openAuthPopup = (
@@ -136,9 +147,11 @@ export function ConnectionsScreen({ highlightId, onHighlightConsumed }: Props) {
           popupWatcher.current = null;
         }
         setPending(null);
-        // Force-refresh this integration so the row flips state immediately
-        // instead of waiting for the 5s poll.
-        void refreshOne(integrationId);
+        // The popup is one page where the user could have toggled *any*
+        // connection (not just the row whose button they clicked), so we
+        // re-sync the whole list immediately instead of waiting for the
+        // background poll.
+        void refreshAll();
       }
     }, 800);
   };

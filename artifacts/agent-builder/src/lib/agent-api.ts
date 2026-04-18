@@ -22,8 +22,27 @@ export interface ConnectionStatus {
   error?: string;
 }
 
-export async function fetchConnections(): Promise<ConnectionStatus[]> {
-  const res = await fetch(`${API_BASE}/connections`);
+export async function fetchConnections(
+  opts: { fresh?: boolean } = {},
+): Promise<ConnectionStatus[]> {
+  const url = opts.fresh
+    ? `${API_BASE}/connections?fresh=1`
+    : `${API_BASE}/connections`;
+  const res = await fetch(url);
+  const data = (await res.json()) as { connections: ConnectionStatus[] };
+  return data.connections ?? [];
+}
+
+/**
+ * Drop the server's cached view of every connection and return the
+ * freshly re-fetched list. Called after the Replit settings popup closes,
+ * since the popup is one page where the user can change *any* connection.
+ */
+export async function refreshAllConnections(): Promise<ConnectionStatus[]> {
+  const res = await fetch(`${API_BASE}/connections/refresh`, {
+    method: "POST",
+  });
+  if (!res.ok) return [];
   const data = (await res.json()) as { connections: ConnectionStatus[] };
   return data.connections ?? [];
 }

@@ -48,10 +48,16 @@ export function computeMissingScopes(
 
 export async function fetchConnection(
   connectorName: string,
-  opts: { force?: boolean } = {},
+  opts: { force?: boolean; maxAgeMs?: number } = {},
 ): Promise<Connection | null> {
   const cached = cache.get(connectorName);
-  if (!opts.force && cached && cached.expires > Date.now()) return cached.item;
+  if (!opts.force && cached && cached.expires > Date.now()) {
+    if (opts.maxAgeMs === undefined) return cached.item;
+    // Honor a tighter freshness window for callers that want near-live data
+    // (e.g. the foreground poll on the Connections screen).
+    const age = Date.now() - (cached.expires - 60_000);
+    if (age <= opts.maxAgeMs) return cached.item;
+  }
   const items = await sdk.listConnections({ connector_names: connectorName });
   const item = items[0] ?? null;
   cache.set(connectorName, { item, expires: Date.now() + 60_000 });
@@ -74,11 +80,13 @@ async function runScopeProbe(
     body?: unknown;
     treat_404_as_ok?: boolean;
   },
+  opts: { force?: boolean } = {},
 ): Promise<ProbeResult> {
   const key = `${connectorName}::${probe.method ?? "GET"} ${probe.path}`;
   const cached = probeCache.get(key);
-  if (cached && cached.expires > Date.now()) return cached.result;
+  if (!opts.force && cached && cached.expires > Date.now()) return cached.result;
   let result: ProbeResult;
+  let cacheable = true;
   try {
     const proxyInit: { method: string; body?: string; headers?: Record<string, string> } = {
       method: probe.method ?? "GET",
@@ -110,13 +118,23 @@ async function runScopeProbe(
         status: res.status,
         scope_insufficient: insufficient,
       };
+      // Only cache real auth signals. Transient failures (5xx, rate limits,
+      // network blips) shouldn't be pinned for 60s — the next poll should
+      // retry.
+      if (!insufficient) cacheable = false;
     }
   } catch {
     // If the probe itself crashes, don't flag the connection as bad — let the
-    // primitives surface their own errors.
+    // primitives surface their own errors. Don't cache the synthesized
+    // success either; the next poll should re-attempt the probe.
     result = { ok: true, status: 0, scope_insufficient: false };
+    cacheable = false;
   }
-  probeCache.set(key, { result, expires: Date.now() + 60_000 });
+  if (cacheable) {
+    probeCache.set(key, { result, expires: Date.now() + 60_000 });
+  } else {
+    probeCache.delete(key);
+  }
   return result;
 }
 
@@ -131,10 +149,15 @@ export async function getConnectorAccount(
       body?: unknown;
       treat_404_as_ok?: boolean;
     };
+    force?: boolean;
+    maxAgeMs?: number;
   } = {},
 ): Promise<ConnectorAccount> {
   try {
-    const item = await fetchConnection(connectorName);
+    const item = await fetchConnection(connectorName, {
+      force: opts.force,
+      maxAgeMs: opts.maxAgeMs,
+    });
     if (!item) {
       return {
         connected: false,
@@ -175,7 +198,9 @@ export async function getConnectorAccount(
       // The probe actually exercises a scoped endpoint, so its result is
       // the source of truth. Only treat parsed scope mismatches as
       // authoritative when the SDK actually returned a scope list.
-      const probe = await runScopeProbe(connectorName, opts.scope_probe);
+      const probe = await runScopeProbe(connectorName, opts.scope_probe, {
+        force: opts.force,
+      });
       if (probe.scope_insufficient) {
         needsReauth = true;
         missing = parsedMissing.length
