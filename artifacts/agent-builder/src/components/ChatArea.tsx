@@ -74,7 +74,7 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
               What should we automate?
             </h1>
             <p className="text-muted-foreground">
-              Describe the workflow, and we'll deploy the agent.
+              Describe the workflow. We'll deploy the agent.
             </p>
           </div>
           <div className="w-full">{inputForm}</div>
