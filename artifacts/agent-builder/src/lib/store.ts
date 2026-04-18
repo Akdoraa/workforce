@@ -79,6 +79,20 @@ export function useAgentStore() {
     setState(s => ({ ...s, currentAgentId: id }));
   }, []);
 
+  const updateAgent = useCallback((agentId: string, updates: Partial<Agent>) => {
+    setState(s => {
+      const target = s.agents[agentId];
+      if (!target) return s;
+      return {
+        ...s,
+        agents: {
+          ...s.agents,
+          [agentId]: { ...target, ...updates },
+        },
+      };
+    });
+  }, []);
+
   const updateCurrentAgent = useCallback((updates: Partial<Agent>) => {
     setState(s => {
       if (!s.currentAgentId) return s;
@@ -88,27 +102,34 @@ export function useAgentStore() {
         ...s,
         agents: {
           ...s.agents,
-          [s.currentAgentId]: { ...current, ...updates }
-        }
+          [s.currentAgentId]: { ...current, ...updates },
+        },
       };
     });
   }, []);
 
-  const addMessage = useCallback((role: "user" | "assistant", content: string) => {
-    setState(s => {
-      if (!s.currentAgentId) return s;
-      const current = s.agents[s.currentAgentId];
-      if (!current) return s;
-      const newMessage: Message = { id: crypto.randomUUID(), role, content, timestamp: Date.now() };
-      return {
-        ...s,
-        agents: {
-          ...s.agents,
-          [s.currentAgentId]: { ...current, messages: [...current.messages, newMessage] }
-        }
-      };
-    });
-  }, []);
+  const addMessageTo = useCallback(
+    (agentId: string, role: "user" | "assistant", content: string) => {
+      setState(s => {
+        const target = s.agents[agentId];
+        if (!target) return s;
+        const newMessage: Message = {
+          id: crypto.randomUUID(),
+          role,
+          content,
+          timestamp: Date.now(),
+        };
+        return {
+          ...s,
+          agents: {
+            ...s.agents,
+            [agentId]: { ...target, messages: [...target.messages, newMessage] },
+          },
+        };
+      });
+    },
+    [],
+  );
 
   return {
     agents: Object.values(state.agents).sort((a, b) => b.createdAt - a.createdAt),
@@ -116,6 +137,7 @@ export function useAgentStore() {
     createNewAgent,
     switchAgent,
     updateCurrentAgent,
-    addMessage,
+    updateAgent,
+    addMessageTo,
   };
 }

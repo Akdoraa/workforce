@@ -33,8 +33,8 @@ function App() {
                   simulateAIResponse(
                     text,
                     store.currentAgent,
-                    store.updateCurrentAgent,
-                    store.addMessage,
+                    store.updateAgent,
+                    store.addMessageTo,
                   );
                 }
               }}
