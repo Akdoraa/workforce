@@ -228,17 +228,17 @@ export function useAgentStore() {
 
   const addMessageTo = useCallback(
     (agentId: string, role: "user" | "assistant", content: string) => {
-      let createdId = "";
+      const newMessageId = crypto.randomUUID();
+      const newMessage: Message = {
+        id: newMessageId,
+        role,
+        content,
+        timestamp: Date.now(),
+      };
       setState((s) => {
         const target = s.agents[agentId];
         if (!target) return s;
-        const newMessage: Message = {
-          id: crypto.randomUUID(),
-          role,
-          content,
-          timestamp: Date.now(),
-        };
-        createdId = newMessage.id;
+        if (target.messages.some((m) => m.id === newMessageId)) return s;
         return {
           ...s,
           agents: {
@@ -250,7 +250,7 @@ export function useAgentStore() {
           },
         };
       });
-      return createdId;
+      return newMessageId;
     },
     [],
   );
@@ -260,6 +260,7 @@ export function useAgentStore() {
       setState((s) => {
         const target = s.agents[agentId];
         if (!target) return s;
+        if (!target.messages.some((m) => m.id === messageId)) return s;
         return {
           ...s,
           agents: {
@@ -290,6 +291,7 @@ export function useAgentStore() {
       setState((s) => {
         const target = s.agents[agentId];
         if (!target) return s;
+        if (!target.messages.some((m) => m.id === messageId)) return s;
         return {
           ...s,
           agents: {
