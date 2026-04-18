@@ -13,10 +13,9 @@ export function SetupCard({ agent, onConnect }: SetupCardProps) {
   const [loading, setLoading] = useState(false);
   const service = agent.service ?? "generic";
   const meta = SERVICE_META[service];
-  const isStripe = service === "stripe";
 
   const handleClick = async () => {
-    if (!isStripe) return;
+    if (!meta.enabled) return;
     setLoading(true);
     try {
       await onConnect();
@@ -47,11 +46,11 @@ export function SetupCard({ agent, onConnect }: SetupCardProps) {
             <p className="text-sm text-muted-foreground">{meta.tagline}</p>
           </div>
 
-          {isStripe ? (
+          {meta.enabled ? (
             <Button
               onClick={handleClick}
               disabled={loading}
-              className="w-full h-11 bg-[#635bff] hover:bg-[#5851e5] text-white font-medium gap-2"
+              className={`w-full h-11 font-medium gap-2 ${meta.buttonClass}`}
             >
               {loading ? (
                 <>
@@ -59,28 +58,25 @@ export function SetupCard({ agent, onConnect }: SetupCardProps) {
                   Verifying connection…
                 </>
               ) : (
-                <>Sign in with Stripe</>
+                <>Sign in with {meta.brandLabel}</>
               )}
             </Button>
           ) : (
             <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground space-y-2">
               <p>
-                Real <span className="text-foreground font-medium">{meta.name}</span>{" "}
-                sign-in is coming next. For now, only Stripe has a live connection
-                wired up.
-              </p>
-              <p className="text-xs">
-                Tip: try a prompt about Stripe payments, refunds, or revenue to
-                build a real app.
+                Real{" "}
+                <span className="text-foreground font-medium">{meta.name}</span>{" "}
+                sign-in is coming next. For now, try a prompt about Stripe
+                payments or your Slack workspace to build a real app.
               </p>
             </div>
           )}
 
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground justify-center">
-            <ShieldCheck className="h-3.5 w-3.5" />
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground justify-center text-center">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
             <span>
-              Authentication happens through {meta.name}. Your password is never
-              shared with this app.
+              Authentication happens through {meta.name}. Your password is
+              never shared with this app.
             </span>
           </div>
         </div>
