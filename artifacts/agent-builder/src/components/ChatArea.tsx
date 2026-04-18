@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Agent, type MessageActivity } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { ArrowUp, User, Check, Loader2 } from "lucide-react";
-import logoUrl from "@assets/workforce_logo_(1)_1776495693230.png";
+import logoUrl from "@assets/workforce_logo_(4)_1776500217040.png";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 interface ChatAreaProps {
