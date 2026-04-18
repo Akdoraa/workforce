@@ -22,15 +22,44 @@ export interface ConnectionStatus {
   error?: string;
 }
 
+// Module-level dedupe + micro-cache. Many components mount their own
+// poll loop (every connect card, the blueprint preview, the connections
+// screen). Without this, ~10 mounted components × every 5s would fan
+// out into 10 simultaneous calls to the connectors API and trigger a
+// 429 rate-limit, which the UI would render as "Couldn't reach Gmail".
+let inflight: Promise<ConnectionStatus[]> | null = null;
+let cachedAt = 0;
+let cached: ConnectionStatus[] = [];
+const MIN_REFRESH_MS = 1500;
+
 export async function fetchConnections(
   opts: { fresh?: boolean } = {},
 ): Promise<ConnectionStatus[]> {
+  if (!opts.fresh && inflight) return inflight;
+  if (
+    !opts.fresh &&
+    cached.length > 0 &&
+    Date.now() - cachedAt < MIN_REFRESH_MS
+  ) {
+    return cached;
+  }
   const url = opts.fresh
     ? `${API_BASE}/connections?fresh=1`
     : `${API_BASE}/connections`;
-  const res = await fetch(url);
-  const data = (await res.json()) as { connections: ConnectionStatus[] };
-  return data.connections ?? [];
+  const promise = (async () => {
+    try {
+      const res = await fetch(url);
+      const data = (await res.json()) as { connections: ConnectionStatus[] };
+      const list = data.connections ?? [];
+      cached = list;
+      cachedAt = Date.now();
+      return list;
+    } finally {
+      inflight = null;
+    }
+  })();
+  inflight = promise;
+  return promise;
 }
 
 /**

@@ -42,6 +42,21 @@ async function buildStatus(
   };
 }
 
+async function buildAllSerialized(opts: {
+  force?: boolean;
+  maxAgeMs?: number;
+}) {
+  // The Replit connectors API rate-limits bursts. Issuing 9 parallel
+  // listConnections calls trips a 429 and surfaces every row as
+  // "Couldn't reach …". Walk the integrations sequentially instead — it
+  // adds a few hundred ms total but keeps the UI honest.
+  const results = [];
+  for (const integ of INTEGRATIONS) {
+    results.push(await buildStatus(integ, opts));
+  }
+  return results;
+}
+
 router.get("/connections", async (req, res) => {
   // The Connections screen polls every few seconds and wants near-live data.
   // `?fresh=1` bypasses the cache entirely; otherwise we honor a short
@@ -49,9 +64,7 @@ router.get("/connections", async (req, res) => {
   // another tab) show up within seconds instead of a full minute.
   const fresh = req.query.fresh === "1" || req.query.fresh === "true";
   const opts = fresh ? { force: true } : { maxAgeMs: 3_000 };
-  const results = await Promise.all(
-    INTEGRATIONS.map((integ) => buildStatus(integ, opts)),
-  );
+  const results = await buildAllSerialized(opts);
   res.json({ connections: results });
 });
 
@@ -73,9 +86,7 @@ router.get("/connections/:id", async (req, res) => {
  */
 router.post("/connections/refresh", async (_req, res) => {
   clearConnectionCache();
-  const results = await Promise.all(
-    INTEGRATIONS.map((integ) => buildStatus(integ, { force: true })),
-  );
+  const results = await buildAllSerialized({ force: true });
   res.json({ connections: results });
 });
 

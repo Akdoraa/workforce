@@ -2,7 +2,20 @@ import { ReplitConnectors, type Connection } from "@replit/connectors-sdk";
 
 const sdk = new ReplitConnectors();
 
-const cache = new Map<string, { item: Connection | null; expires: number }>();
+interface CacheEntry {
+  item: Connection | null;
+  /** Timestamp of last successful fetch — refresh allowed after expires. */
+  expires: number;
+  /** Last successful fetch was real (not synthesized from a stale value). */
+  hasValue: boolean;
+}
+
+const cache = new Map<string, CacheEntry>();
+// Dedupe concurrent fetches for the same connector so a burst of polls
+// (one card per integration × multiple components × every 5s) doesn't
+// fan out into N parallel calls to the connectors API and trip its
+// 429 rate limit.
+const inflight = new Map<string, Promise<Connection | null>>();
 
 export interface ConnectorAccount {
   connected: boolean;
@@ -46,6 +59,8 @@ export function computeMissingScopes(
   return missing;
 }
 
+const CACHE_TTL_MS = 60_000;
+
 export async function fetchConnection(
   connectorName: string,
   opts: { force?: boolean; maxAgeMs?: number } = {},
@@ -55,13 +70,70 @@ export async function fetchConnection(
     if (opts.maxAgeMs === undefined) return cached.item;
     // Honor a tighter freshness window for callers that want near-live data
     // (e.g. the foreground poll on the Connections screen).
-    const age = Date.now() - (cached.expires - 60_000);
+    const age = Date.now() - (cached.expires - CACHE_TTL_MS);
     if (age <= opts.maxAgeMs) return cached.item;
   }
-  const items = await sdk.listConnections({ connector_names: connectorName });
-  const item = items[0] ?? null;
-  cache.set(connectorName, { item, expires: Date.now() + 60_000 });
-  return item;
+
+  // Dedupe in-flight fetches: if a refresh for this connector is already
+  // in progress, every other caller waits for it instead of issuing a
+  // parallel SDK call. This is what protects us from the connectors API
+  // 429 rate limit when many components mount at once.
+  const pending = inflight.get(connectorName);
+  if (pending) return pending;
+
+  const promise = (async () => {
+    try {
+      let items;
+      try {
+        items = await sdk.listConnections({ connector_names: connectorName });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        // The connectors API rate-limits aggressively when many lookups
+        // arrive in the same burst. Wait a beat and retry once before
+        // giving up — almost always succeeds on the second try.
+        if (/429|too many requests/i.test(msg)) {
+          await new Promise((r) => setTimeout(r, 750));
+          items = await sdk.listConnections({
+            connector_names: connectorName,
+          });
+        } else if (/\b401\b|unauthorized/i.test(msg)) {
+          // 401 from listConnections means the current user simply hasn't
+          // authorized this connector yet. That's "Not connected", not a
+          // server error — surface it as such instead of "Couldn't reach …".
+          items = [];
+        } else {
+          throw err;
+        }
+      }
+      const item = items[0] ?? null;
+      cache.set(connectorName, {
+        item,
+        expires: Date.now() + CACHE_TTL_MS,
+        hasValue: true,
+      });
+      return item;
+    } catch (err) {
+      // Stale-while-revalidate: if we ever had a successful fetch for
+      // this connector, return that instead of bubbling the error. The
+      // connectors infra rate-limits aggressively (429), and there's no
+      // reason to flip a connected account to "Couldn't reach …" just
+      // because the latest poll got throttled. Set a short TTL so we
+      // retry soon.
+      if (cached && cached.hasValue) {
+        cache.set(connectorName, {
+          item: cached.item,
+          expires: Date.now() + 5_000,
+          hasValue: true,
+        });
+        return cached.item;
+      }
+      throw err;
+    } finally {
+      inflight.delete(connectorName);
+    }
+  })();
+  inflight.set(connectorName, promise);
+  return promise;
 }
 
 /**
