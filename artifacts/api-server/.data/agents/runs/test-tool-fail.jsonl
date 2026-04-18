@@ -1,2 +1,0 @@
-{"op":"create","run":{"id":"a54e1ff9-ccd3-420c-8388-f4454cab2311","agent_id":"test-tool-fail","trigger_source":"manual","trigger_id":null,"trigger_description":null,"task":"Do your job now.","started_at":1776495316173,"ended_at":null,"status":"running","failure_reason":null,"failure_summary":null,"tool_call_count":0}}
-{"op":"update","id":"a54e1ff9-ccd3-420c-8388-f4454cab2311","patch":{"status":"succeeded","ended_at":1776495320635,"tool_call_count":0}}

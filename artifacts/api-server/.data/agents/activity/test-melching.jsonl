@@ -1,3 +1,0 @@
-{"id":"66d7d594-28c3-417a-bcc4-5a6cefb5c701","ts":1776492659284,"run_id":"f0249fe4-6f43-4710-8911-92f575ed6abd","kind":"run_start","text":"Run started — Say hello."}
-{"id":"0c14cf5e-3ca3-41ed-a36f-673840b95da4","ts":1776492660530,"run_id":"f0249fe4-6f43-4710-8911-92f575ed6abd","kind":"thought","text":"Hello!\n\nI said hello to the user as instructed, without using any tools, keeping it brief per the voice guidelines."}
-{"id":"67cf94d9-e922-4dd2-8896-794c1aabebb5","ts":1776492660531,"run_id":"f0249fe4-6f43-4710-8911-92f575ed6abd","kind":"run_end","text":"Hello!\n\nI said hello to the user as instructed, without using any tools, keeping it brief per the voice guidelines."}
