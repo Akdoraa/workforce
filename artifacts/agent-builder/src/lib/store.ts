@@ -11,6 +11,8 @@ export type Phase = "welcome" | "building" | "deployed";
 export interface MessageActivity {
   id: string;
   label: string;
+  /** Internal tool name (e.g. "add_capability") for grouping/filtering. */
+  kind?: string;
 }
 
 export interface Message {
@@ -91,7 +93,10 @@ function normalizeMessage(raw: unknown): Message | null {
       if (!label) return null;
       const aid =
         typeof ar["id"] === "string" ? (ar["id"] as string) : crypto.randomUUID();
-      return { id: aid, label } satisfies MessageActivity;
+      const kind = typeof ar["kind"] === "string" ? (ar["kind"] as string) : undefined;
+      const out: MessageActivity = { id: aid, label };
+      if (kind) out.kind = kind;
+      return out;
     })
     .filter((a): a is MessageActivity => a !== null);
   return { id, role, content, timestamp, activities };
@@ -256,7 +261,7 @@ export function useAgentStore() {
   );
 
   const addActivityTo = useCallback(
-    (agentId: string, messageId: string, label: string) => {
+    (agentId: string, messageId: string, label: string, kind?: string) => {
       setState((s) => {
         const target = s.agents[agentId];
         if (!target) return s;
@@ -273,7 +278,7 @@ export function useAgentStore() {
                       ...m,
                       activities: [
                         ...(m.activities ?? []),
-                        { id: crypto.randomUUID(), label },
+                        { id: crypto.randomUUID(), label, kind },
                       ],
                     }
                   : m,

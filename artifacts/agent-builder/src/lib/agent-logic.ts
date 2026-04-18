@@ -17,7 +17,12 @@ interface RunBuilderTurnArgs {
     content: string,
   ) => string;
   appendToMessage: (id: string, messageId: string, delta: string) => void;
-  addActivityTo: (id: string, messageId: string, label: string) => void;
+  addActivityTo: (
+    id: string,
+    messageId: string,
+    label: string,
+    kind?: string,
+  ) => void;
   patchBlueprint: (id: string, patch: BlueprintPatch) => void;
 }
 
@@ -61,11 +66,15 @@ export function friendlyToolLabel(
     case "add_capability":
       return "Adding a capability";
     case "set_voice":
-      return "Writing how it sounds";
+      return "Tuning the voice";
     case "set_rules":
       return "Writing the operating rules";
     case "finalize_blueprint":
       return "Finalizing the agent";
+    case "summary": {
+      const text = typeof args.label === "string" ? args.label : "";
+      return text;
+    }
     default:
       return titleize(name);
   }
@@ -103,7 +112,7 @@ export async function runBuilderTurn({
       appendToMessage(agent.id, assistantMsgId, delta);
     },
     onToolCall: (name, args) => {
-      addActivityTo(agent.id, assistantMsgId, friendlyToolLabel(name, args));
+      addActivityTo(agent.id, assistantMsgId, friendlyToolLabel(name, args), name);
     },
     onPatch: (patch) => {
       patchCount += 1;

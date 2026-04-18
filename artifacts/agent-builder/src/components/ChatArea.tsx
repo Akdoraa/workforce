@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Agent } from "@/lib/store";
+import { Agent, type MessageActivity } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { ArrowUp, User, Check, Loader2 } from "lucide-react";
 import logoUrl from "@assets/workforce_logo_(1)_1776495693230.png";
@@ -9,6 +9,70 @@ interface ChatAreaProps {
   agent: Agent | null;
   onSendMessage: (text: string) => void;
   variant: "welcome" | "compact";
+}
+
+// Internal tool kinds that are pure plumbing — never shown.
+const HIDDEN_KINDS = new Set([
+  "set_voice",
+  "set_rules",
+  "finalize_blueprint",
+]);
+
+// Internal tool kinds that we collapse into a single summary row when they
+// appear in a run, instead of showing each invocation.
+const COLLAPSE_KINDS: Record<string, (n: number) => string> = {
+  add_capability: (n) => (n === 1 ? "Added a capability" : `Added ${n} capabilities`),
+  add_trigger: (n) => (n === 1 ? "Set up a trigger" : `Set up ${n} triggers`),
+};
+
+interface DisplayActivity {
+  id: string;
+  label: string;
+}
+
+/**
+ * Filter and group raw activities into a short, human-readable list.
+ * - Hides low-signal internal steps entirely.
+ * - Collapses repeated generic steps into a single summary row.
+ * - Keeps named steps (set_role, add_integration, add_tool) as-is.
+ * - De-duplicates immediate repeats of the same label.
+ */
+function groupActivities(activities: MessageActivity[]): DisplayActivity[] {
+  // Pre-count collapsible kinds, and remember the *last* index at which
+  // each collapsed kind appears. Emitting the summary at the last position
+  // (instead of the first) keeps the live "in progress" spinner attached
+  // to the most chronologically recent meaningful step.
+  const counts: Record<string, number> = {};
+  const lastIndex: Record<string, number> = {};
+  activities.forEach((a, idx) => {
+    if (a.kind && a.kind in COLLAPSE_KINDS) {
+      counts[a.kind] = (counts[a.kind] ?? 0) + 1;
+      lastIndex[a.kind] = idx;
+    }
+  });
+
+  const out: DisplayActivity[] = [];
+  let lastLabel: string | null = null;
+
+  activities.forEach((a, idx) => {
+    const kind = a.kind ?? "";
+    if (HIDDEN_KINDS.has(kind)) return;
+
+    if (kind in COLLAPSE_KINDS) {
+      if (idx !== lastIndex[kind]) return;
+      const total = counts[kind] ?? 1;
+      const label = COLLAPSE_KINDS[kind]!(total);
+      out.push({ id: `summary-${kind}-${a.id}`, label });
+      lastLabel = label;
+      return;
+    }
+
+    if (a.label === lastLabel) return;
+    out.push({ id: a.id, label: a.label });
+    lastLabel = a.label;
+  });
+
+  return out;
 }
 
 export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
@@ -118,7 +182,7 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
             msg.role === "assistant" &&
             idx === (agent?.messages.length ?? 0) - 1;
           const liveAssistant = isLastAssistant && isBuilding;
-          const activities = msg.activities ?? [];
+          const activities = groupActivities(msg.activities ?? []);
           const hasContent = msg.content.length > 0;
           return (
             <div

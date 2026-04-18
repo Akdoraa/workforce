@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, CheckCircle2, Loader2, Plug, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Plug, RefreshCw } from "lucide-react";
 import { fetchConnections, type ConnectionStatus } from "@/lib/agent-api";
 
 interface ConnectCardProps {
@@ -16,6 +16,18 @@ const BRAND_PROMPTS: Record<string, string> = {
   stripe: "Connect your payments (Stripe)",
 };
 
+// All Replit connectors are managed from the same account-level page. This is
+// the same destination the workspace uses to walk a user through OAuth — we
+// open it in a popup so the user can grant (or re-grant) access in one click
+// without leaving the assistant.
+const CONNECTOR_AUTH_URL = "https://replit.com/account#connections";
+
+interface Hint {
+  message: string;
+  /** Shown when the popup didn't open (blocked by browser). */
+  fallbackUrl?: string;
+}
+
 export function ConnectCard({
   integrationId,
   integrationName,
@@ -24,6 +36,8 @@ export function ConnectCard({
 }: ConnectCardProps) {
   const [status, setStatus] = useState<ConnectionStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hint, setHint] = useState<Hint | null>(null);
+  const popupWatcher = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const refresh = async () => {
     try {
@@ -46,20 +60,71 @@ export function ConnectCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [integrationId]);
 
-  const [hint, setHint] = useState<string | null>(null);
+  useEffect(() => {
+    return () => {
+      if (popupWatcher.current) clearInterval(popupWatcher.current);
+    };
+  }, []);
+
+  /**
+   * Open the Replit connector authorization page in a popup. If the popup
+   * is blocked, return null so the caller can surface a fallback link.
+   */
+  const openAuthPopup = (): Window | null => {
+    const features = "popup=yes,width=560,height=720,noopener=no";
+    let win: Window | null = null;
+    try {
+      win = window.open(CONNECTOR_AUTH_URL, "replit-connector-auth", features);
+    } catch {
+      win = null;
+    }
+    if (!win) return null;
+    try {
+      win.focus();
+    } catch {
+      // ignore — focus can throw in cross-origin scenarios
+    }
+    if (popupWatcher.current) clearInterval(popupWatcher.current);
+    popupWatcher.current = setInterval(() => {
+      if (win!.closed) {
+        if (popupWatcher.current) {
+          clearInterval(popupWatcher.current);
+          popupWatcher.current = null;
+        }
+        // The user finished (or cancelled). Refresh immediately so the card
+        // flips to Connected without waiting for the 5s poll.
+        void refresh();
+      }
+    }, 800);
+    return win;
+  };
 
   const handleConnect = () => {
-    setHint(
-      `Approve the ${integrationName} sign-in when it pops up. This card turns green as soon as it's ready.`,
-    );
-    void refresh();
+    const win = openAuthPopup();
+    if (win) {
+      setHint({
+        message: `Approve the ${integrationName} sign-in in the popup. This card turns green as soon as it's ready.`,
+      });
+    } else {
+      setHint({
+        message: `Your browser blocked the popup. Open the Replit connections page and authorize ${integrationName}, then come back.`,
+        fallbackUrl: CONNECTOR_AUTH_URL,
+      });
+    }
   };
 
   const handleReconnect = () => {
-    setHint(
-      `${integrationName} needs a bit more access. Sign out of ${integrationName} from your connections, then sign in again and approve the extra permissions.`,
-    );
-    void refresh();
+    const win = openAuthPopup();
+    if (win) {
+      setHint({
+        message: `Approve the extra ${integrationName} permissions when the popup opens. This card updates as soon as the new access is granted.`,
+      });
+    } else {
+      setHint({
+        message: `Your browser blocked the popup. Open the Replit connections page and re-authorize ${integrationName} with the extra permissions, then come back.`,
+        fallbackUrl: CONNECTOR_AUTH_URL,
+      });
+    }
   };
 
   const brand = BRAND_PROMPTS[integrationId] ?? `Connect ${integrationName}`;
@@ -122,8 +187,18 @@ export function ConnectCard({
         ) : null}
       </div>
       {hint ? (
-        <div className="px-4 py-2 text-xs text-muted-foreground bg-muted/40 border-t border-border">
-          {hint}
+        <div className="px-4 py-2 text-xs text-muted-foreground bg-muted/40 border-t border-border flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span>{hint.message}</span>
+          {hint.fallbackUrl ? (
+            <a
+              href={hint.fallbackUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-foreground/80 hover:text-foreground underline underline-offset-2"
+            >
+              Open Replit connections <ExternalLink className="h-3 w-3" />
+            </a>
+          ) : null}
         </div>
       ) : null}
     </div>
