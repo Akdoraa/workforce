@@ -108,7 +108,7 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
             handleSubmit(e);
           }
         }}
-        placeholder="Make an agent that summarizes my unread emails every morning at 9am..."
+        placeholder="Describe the workflow you want to automate..."
         className="w-full bg-transparent border-0 focus:ring-0 resize-none py-4 pl-4 pr-12 max-h-[200px] min-h-[56px] text-sm relative z-10 outline-none"
         rows={1}
         disabled={isBuilding}
