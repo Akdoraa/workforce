@@ -15,6 +15,12 @@ import {
   invokePrimitive,
   PrimitiveValidationError,
 } from "../registry";
+import {
+  clearConnectionCache,
+  isConnectorConnected,
+  getConnectorAccount,
+} from "../connectors";
+import { resetStripeClient } from "../registry/stripe";
 import { appendActivity, createRun, updateRun } from "./store";
 import { redactArgs } from "./redact";
 
@@ -254,6 +260,19 @@ async function executeRun(
   let summary = "";
   let toolCallCount = 0;
 
+  // Figure out which integrations the agent's selected tools depend on.
+  // We use this set both to invalidate caches at run start (so a freshly
+  // (re)connected account is picked up immediately) and to pre-flight
+  // check the connections — so a missing connection produces a precise
+  // "X isn't connected" message instead of a deep SDK failure dressed
+  // up as "the record we were looking for wasn't there".
+  const requiredIntegrationIds = new Set<string>();
+  for (const t of bp.tools) {
+    const primName = t.primitive ?? t.name;
+    const prim = findPrimitive(primName);
+    if (prim) requiredIntegrationIds.add(prim.integration_id);
+  }
+
   // Becomes true once the run has been terminated (success, failure,
   // or timeout). Used to drop any late activity writes from in-flight
   // tool handlers whose work we could not actually cancel, so the
@@ -267,6 +286,99 @@ async function executeRun(
   };
 
   try {
+    // Reset any module-level cached SDK clients whose underlying
+    // credentials may have changed since the last run. The Stripe SDK
+    // client in particular is built once from `getStripeKeys()` and
+    // would otherwise hold onto stale keys after a reconnect.
+    if (requiredIntegrationIds.has("stripe")) resetStripeClient();
+
+    // Pre-flight: verify each required integration is actually connected
+    // (force-fresh, bypassing the 60s cache). If something's missing,
+    // end the run with a precise message naming the integration so the
+    // user knows exactly what to fix — instead of letting the tool
+    // handler fail deep inside the SDK with a misleading error.
+    for (const integId of requiredIntegrationIds) {
+      const integ = findIntegration(integId);
+      if (!integ) continue;
+      // Drop the cache for this connector so getConnectorAccount /
+      // isConnectorConnected re-reads from the SDK on first use.
+      clearConnectionCache(integ.connector_name);
+
+      // 1) Lookup. We must distinguish "no connection exists" from
+      //    "lookup itself failed" — collapsing both into "not connected"
+      //    would mislead users when the connectors infrastructure has a
+      //    transient hiccup. Genuine lookup failures bubble up so the
+      //    humanizer reports the real reason.
+      let presence: { connected: boolean };
+      try {
+        presence = await isConnectorConnected(integ.connector_name);
+      } catch (lookupErr) {
+        const detail =
+          lookupErr instanceof Error ? lookupErr.message : String(lookupErr);
+        const friendly =
+          `Couldn't reach the connections service to verify ${integ.name} ` +
+          `right now. This is usually transient — try again in a moment.`;
+        throw new ToolFailureError(
+          `${integ.name} connection`,
+          friendly,
+          `Connector lookup for ${integ.connector_name} failed: ${detail}`,
+          friendly,
+          integ.id,
+        );
+      }
+      if (!presence.connected) {
+        const friendly = `${integ.name} isn't connected — connect it on the Connections screen and run again.`;
+        throw new ToolFailureError(
+          `${integ.name} connection`,
+          friendly,
+          `${integ.name} (${integ.connector_name}) is not connected.`,
+          `${integ.name} is not connected.`,
+          integ.id,
+        );
+      }
+
+      // 2) Authoritative scope/account check. When the integration
+      //    declares required_scopes or a scope_probe, exercise it now
+      //    so we can fail fast with a precise "reconnect Gmail and
+      //    grant send-mail access" message instead of letting the
+      //    handler crash mid-tool with a generic 403.
+      if (integ.required_scopes || integ.scope_probe) {
+        const account = await getConnectorAccount(integ.connector_name, {
+          required_scopes: integ.required_scopes,
+          scope_equivalents: integ.scope_equivalents,
+          scope_probe: integ.scope_probe,
+        });
+        if (!account.connected) {
+          const friendly = `${integ.name} isn't connected — connect it on the Connections screen and run again.`;
+          throw new ToolFailureError(
+            `${integ.name} connection`,
+            friendly,
+            account.error ?? `${integ.name} is not connected.`,
+            friendly,
+            integ.id,
+          );
+        }
+        if (account.needs_reauthorization) {
+          const missingHint = account.missing_scopes.length
+            ? ` (missing access: ${account.missing_scopes.join(", ")})`
+            : "";
+          const friendly =
+            `${integ.name} is connected but the granted account isn't authorized ` +
+            `to do what this agent needs${missingHint}. Please reconnect ${integ.name} ` +
+            `on the Connections screen and grant the requested access.`;
+          throw new ToolFailureError(
+            `${integ.name} authorization`,
+            friendly,
+            `${integ.name} scope check failed; missing: ${
+              account.missing_scopes.join(", ") || "(unknown)"
+            }`,
+            friendly,
+            integ.id,
+          );
+        }
+      }
+    }
+
     for (let turn = 0; turn < MAX_TURNS; turn++) {
       const response = await untilDeadline(
         anthropic.messages.create({
@@ -399,7 +511,12 @@ async function executeRun(
             });
             continue;
           }
-          const friendly = humanizeRuntimeError(prim.label, technical);
+          const integForPrim = findIntegration(prim.integration_id);
+          const friendly = humanizeRuntimeError(
+            prim.label,
+            technical,
+            integForPrim?.name,
+          );
           throw new ToolFailureError(
             prim.label,
             friendly,
@@ -500,35 +617,59 @@ function formatDuration(sec: number): string {
   return s ? `${m}m ${s}s` : `${m}m`;
 }
 
-function humanizeRuntimeError(label: string, technical: string): string {
+function humanizeRuntimeError(
+  label: string,
+  technical: string,
+  integrationName?: string,
+): string {
   const lower = technical.toLowerCase();
   const action = label.toLowerCase();
-  // Gmail / Google APIs return 403 with bodies that include
-  // "ACCESS_TOKEN_SCOPE_INSUFFICIENT" or "Insufficient Permission" when a
-  // connected account is missing a required OAuth scope. Surface that
-  // explicitly so users know reconnecting (not retrying) is the fix.
+  const provider = integrationName ?? "the connected account";
+
+  // 1. Missing-credentials / missing-connection problems. These must be
+  //    detected BEFORE any "not found" / 404 check, otherwise an error
+  //    like "Stripe credentials missing from the connection — please
+  //    reconnect" gets surfaced as "the record we were looking for
+  //    wasn't there", which is exactly the bug we're fixing.
+  if (
+    lower.includes("credentials missing") ||
+    lower.includes("isn't connected") ||
+    lower.includes("is not connected") ||
+    lower.includes("not connected") ||
+    lower.includes("please reconnect") ||
+    lower.includes("connector lookup failed") ||
+    lower.includes("no access token")
+  ) {
+    // The handler/preflight already produced a user-facing sentence
+    // naming the integration. Pass it through unchanged so the user
+    // sees "Stripe isn't connected — connect it on the Connections
+    // screen and run again." instead of a generic re-wording.
+    return technical;
+  }
+
+  // 2. Insufficient-scope problems (Google APIs return 403 with
+  //    "ACCESS_TOKEN_SCOPE_INSUFFICIENT" / "Insufficient Permission"
+  //    when the connected account is missing a required OAuth scope).
   if (
     lower.includes("access_token_scope_insufficient") ||
     lower.includes("insufficient permission") ||
     lower.includes("insufficient authentication scopes") ||
     lower.includes("insufficientpermissions")
   ) {
-    const service = label.toLowerCase().includes("gmail")
-      ? "Gmail"
-      : "the connected account";
-    return `Couldn't ${action} — ${service} isn't authorized to do this. Please reconnect it and grant the requested access.`;
+    return `Couldn't ${action} — ${provider} isn't authorized to do this. Please reconnect ${provider} on the Connections screen and grant the requested access.`;
   }
+
+  // 3. Authorization failures from the live service (401/403, etc).
   if (
-    lower.includes("not connected") ||
     lower.includes("401") ||
     lower.includes("403") ||
     lower.includes("unauthorized") ||
-    lower.includes("forbidden") ||
-    lower.includes("connector lookup failed") ||
-    lower.includes("no access token")
+    lower.includes("forbidden")
   ) {
-    return `Couldn't ${action} — the connected account isn't authorized. Please reconnect it and try again.`;
+    return `Couldn't ${action} — ${provider} isn't authorized. Please reconnect ${provider} on the Connections screen and try again.`;
   }
+
+  // 4. Rate-limit and transient network problems.
   if (
     lower.includes("rate limit") ||
     lower.includes("429") ||
@@ -545,7 +686,17 @@ function humanizeRuntimeError(label: string, technical: string): string {
   ) {
     return `Couldn't ${action} — the connection to the service timed out. We'll try again on the next run.`;
   }
-  if (lower.includes("not found") || lower.includes("404")) {
+
+  // 5. True upstream 404s. We require BOTH a 404 status indicator AND
+  //    "no such" / "not found" wording from the live service, so a
+  //    handler error that merely contains the phrase "not found" in
+  //    some other context (e.g. "credentials not found") cannot fall
+  //    in here. The phrase itself is also strict ("no such" is what
+  //    Stripe actually returns; Google returns 404 with "not found").
+  const isHttp404 = /\b404\b/.test(lower);
+  const has404Wording =
+    lower.includes("no such ") || /\bnot found\b/.test(lower);
+  if (isHttp404 && has404Wording) {
     return `Couldn't ${action} — the record we were looking for wasn't there.`;
   }
   return `Couldn't ${action}. We've logged the details for review.`;

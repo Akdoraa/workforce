@@ -64,6 +64,31 @@ export async function fetchConnection(
   return item;
 }
 
+/**
+ * Connector-presence probe used by the run preflight. We deliberately
+ * do NOT collapse all errors into "not connected" — a transient failure
+ * looking up the connection (network error, 5xx from the connectors
+ * service) must surface as a transient error so we tell the user the
+ * truth instead of asking them to reconnect a perfectly good account.
+ *
+ * Returns:
+ *   { connected: true }  — connection exists.
+ *   { connected: false } — SDK responded successfully and there is no
+ *                          connection for this connector.
+ *   throws               — lookup itself failed; caller should treat as
+ *                          transient infrastructure failure, not as a
+ *                          missing connection.
+ *
+ * Always bypasses the in-memory cache so a freshly-connected account is
+ * seen immediately.
+ */
+export async function isConnectorConnected(
+  connectorName: string,
+): Promise<{ connected: boolean }> {
+  const item = await fetchConnection(connectorName, { force: true });
+  return { connected: item != null };
+}
+
 interface ProbeResult {
   ok: boolean;
   status: number;
@@ -260,21 +285,98 @@ export async function connectorFetch(
   return sdk.proxy(connectorName, path, init);
 }
 
-export async function getStripeKeys(): Promise<{
+/**
+ * Fetch a connection's settings *with secrets included*. The connectors
+ * SDK's `listConnections` strips secret material — including the Stripe
+ * publishable/secret keys — so we have to hit the connection-API REST
+ * endpoint directly with `include_secrets=true`. We do this only on the
+ * read path that needs raw credentials (e.g. building a Stripe SDK
+ * client) so secrets aren't pulled into memory more than necessary.
+ */
+async function fetchConnectionSettingsWithSecrets(
+  connectorName: string,
+): Promise<Record<string, unknown> | null> {
+  const hostname = process.env["REPLIT_CONNECTORS_HOSTNAME"];
+  const xReplitToken = process.env["REPL_IDENTITY"]
+    ? `repl ${process.env["REPL_IDENTITY"]}`
+    : process.env["WEB_REPL_RENEWAL"]
+      ? `depl ${process.env["WEB_REPL_RENEWAL"]}`
+      : null;
+  if (!hostname || !xReplitToken) {
+    // Distinguish infra misconfiguration from "user hasn't connected
+    // anything" — saying "Stripe isn't connected" when the runtime is
+    // missing REPLIT_CONNECTORS_HOSTNAME / REPL_IDENTITY would point
+    // the user at the wrong fix.
+    throw new Error(
+      "Connectors environment isn't configured (REPLIT_CONNECTORS_HOSTNAME / REPL_IDENTITY missing). This is a server-side configuration problem, not a connection problem.",
+    );
+  }
+  const url = `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=${encodeURIComponent(connectorName)}`;
+  const resp = await fetch(url, {
+    headers: { Accept: "application/json", X_REPLIT_TOKEN: xReplitToken },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!resp.ok) {
+    throw new Error(
+      `Connector lookup failed for ${connectorName}: ${resp.status} ${resp.statusText}`,
+    );
+  }
+  const data = (await resp.json()) as {
+    items?: Array<{ settings?: Record<string, unknown> }>;
+  };
+  const settings = data.items?.[0]?.settings;
+  return settings ?? null;
+}
+
+export async function getStripeKeys(
+  _opts: { force?: boolean } = {},
+): Promise<{
   publishableKey: string;
   secretKey: string;
 }> {
-  const item = await fetchConnection("stripe");
-  const settings = (item?.["settings"] ?? {}) as Record<string, unknown>;
-  const publishable =
-    (settings["publishable"] as string | undefined) ??
-    (settings["publishable_key"] as string | undefined);
-  const secret =
-    (settings["secret"] as string | undefined) ??
-    (settings["secret_key"] as string | undefined) ??
-    (settings["api_key"] as string | undefined);
-  if (!publishable || !secret) {
-    throw new Error("Stripe connection not found");
+  // Always re-read the underlying settings — the SDK-level connection
+  // cache holds the connection identity but NOT the credentials, so
+  // there's nothing to invalidate here. The `force` parameter is kept
+  // for backward compatibility but isn't needed.
+  const settings = await fetchConnectionSettingsWithSecrets("stripe");
+  if (!settings) {
+    throw new Error(
+      "Stripe isn't connected — connect it on the Connections screen and run again.",
+    );
+  }
+  const oauth = (settings["oauth"] ?? {}) as Record<string, unknown>;
+  const credentials = (oauth["credentials"] ?? {}) as Record<string, unknown>;
+  const pickStr = (...keys: string[]): string | undefined => {
+    for (const k of keys) {
+      const v = settings[k] ?? credentials[k];
+      if (typeof v === "string" && v.trim()) return v.trim();
+    }
+    return undefined;
+  };
+  const publishable = pickStr(
+    "publishable",
+    "publishable_key",
+    "publishableKey",
+    "publishable_api_key",
+    "pk",
+    "pk_live",
+    "pk_test",
+  );
+  const secret = pickStr(
+    "secret",
+    "secret_key",
+    "secretKey",
+    "api_key",
+    "apiKey",
+    "sk",
+    "sk_live",
+    "sk_test",
+    "access_token",
+  );
+  if (!secret || !publishable) {
+    throw new Error(
+      "Stripe credentials missing from the connection — please reconnect Stripe on the Connections screen.",
+    );
   }
   return { publishableKey: publishable, secretKey: secret };
 }

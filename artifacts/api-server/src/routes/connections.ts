@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { clearConnectionCache, getConnectorAccount } from "../lib/connectors";
 import { INTEGRATIONS, findIntegration } from "../lib/registry";
 import type { IntegrationDefinition } from "../lib/registry";
+import { resetStripeClient } from "../lib/registry/stripe";
 
 const router: IRouter = Router();
 
@@ -89,6 +90,11 @@ router.post("/connections/:id/refresh", async (req, res) => {
     return;
   }
   clearConnectionCache(integ.connector_name);
+  // Reset module-level cached SDK clients whose underlying credentials
+  // could now be different (e.g. a reconnected Stripe account swaps the
+  // secret key). Without this the next agent run would still call
+  // Stripe with the old key.
+  if (integ.id === "stripe") resetStripeClient();
   res.json(await buildStatus(integ, { force: true }));
 });
 

@@ -12,15 +12,22 @@ export const STRIPE_INTEGRATION: IntegrationDefinition = {
 };
 
 let cached: Stripe | null = null;
+let cachedSecretKey: string | null = null;
 async function client(): Promise<Stripe> {
-  if (cached) return cached;
-  const { secretKey } = await getStripeKeys();
-  cached = new Stripe(secretKey, { apiVersion: "2025-11-17.clover" });
+  // Always re-read the connection secret. If it changed (user reconnected
+  // a different Stripe account, or rotated the key), build a fresh SDK
+  // client so the next API call hits the new account immediately.
+  const { secretKey } = await getStripeKeys({ force: cached === null });
+  if (!cached || cachedSecretKey !== secretKey) {
+    cached = new Stripe(secretKey, { apiVersion: "2025-11-17.clover" });
+    cachedSecretKey = secretKey;
+  }
   return cached;
 }
 
 export function resetStripeClient() {
   cached = null;
+  cachedSecretKey = null;
 }
 
 export async function getStripeClient(): Promise<Stripe> {
