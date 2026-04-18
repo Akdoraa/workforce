@@ -1,9 +1,23 @@
 import { GMAIL_INTEGRATION, GMAIL_PRIMITIVES } from "./gmail";
 import { HUBSPOT_INTEGRATION, HUBSPOT_PRIMITIVES } from "./hubspot";
 import { STRIPE_INTEGRATION, STRIPE_PRIMITIVES } from "./stripe";
-import type { IntegrationDefinition, IntegrationPrimitive } from "./types";
+import type {
+  IntegrationDefinition,
+  IntegrationPrimitive,
+  PrimitiveContext,
+  PrimitiveResult,
+} from "./types";
+import {
+  formatValidationErrors,
+  validateAgainstSchema,
+} from "./validate";
 
-export type { IntegrationDefinition, IntegrationPrimitive } from "./types";
+export type {
+  IntegrationDefinition,
+  IntegrationPrimitive,
+  PrimitiveContext,
+  PrimitiveResult,
+} from "./types";
 
 export const INTEGRATIONS: IntegrationDefinition[] = [
   GMAIL_INTEGRATION,
@@ -29,6 +43,37 @@ export function listPrimitivesByIntegration(
   integrationId: string,
 ): IntegrationPrimitive[] {
   return PRIMITIVES.filter((p) => p.integration_id === integrationId);
+}
+
+export class PrimitiveValidationError extends Error {
+  constructor(
+    message: string,
+    public readonly details: string,
+  ) {
+    super(message);
+    this.name = "PrimitiveValidationError";
+  }
+}
+
+/**
+ * Run a primitive after validating its input against the declared schema.
+ * Validation failures throw a `PrimitiveValidationError` carrying a clean
+ * message the executor can hand back to the LLM as a tool error.
+ */
+export async function invokePrimitive(
+  prim: IntegrationPrimitive,
+  input: Record<string, unknown>,
+  ctx: PrimitiveContext,
+): Promise<PrimitiveResult> {
+  const errors = validateAgainstSchema(input, prim.input_schema);
+  if (errors.length > 0) {
+    const detail = formatValidationErrors(errors);
+    throw new PrimitiveValidationError(
+      `the tool '${prim.name}' was called with invalid arguments: ${detail}`,
+      detail,
+    );
+  }
+  return prim.handler(input, ctx);
 }
 
 export function describeRegistryForBuilder(): string {

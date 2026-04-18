@@ -8,8 +8,14 @@ import {
   Run,
   RunTriggerSource,
 } from "@workspace/api-zod";
-import { findIntegration, findPrimitive } from "../registry";
+import {
+  findIntegration,
+  findPrimitive,
+  invokePrimitive,
+  PrimitiveValidationError,
+} from "../registry";
 import { appendActivity, createRun, updateRun } from "./store";
+import { redactArgs } from "./redact";
 
 const MAX_TURNS = 10;
 const DEFAULT_RUN_TIMEOUT_MS = 5 * 60 * 1000;
@@ -278,7 +284,7 @@ async function executeRun(
           run_id: run.id,
           kind: "tool_call",
           text: prim ? `${prim.label}…` : `Calling ${tu.name}…`,
-          details: { tool: tu.name, args },
+          details: { tool: tu.name, args: redactArgs(args) },
         });
 
         if (!prim) {
@@ -303,7 +309,11 @@ async function executeRun(
             throw new TimeoutError("run wall-clock", "run");
           }
           const perToolMs = Math.min(toolTimeoutMs, remaining);
-          const handlerPromise = prim.handler(args, {
+          // `invokePrimitive` validates `args` against the declared input
+          // schema before calling the handler. A schema mismatch throws a
+          // `PrimitiveValidationError` we catch below to give the LLM a
+          // clean tool error instead of a garbled API call.
+          const handlerPromise = invokePrimitive(prim, args, {
             connector_name: integ?.connector_name ?? prim.integration_id,
             log: (msg, details) => {
               // Drop any log that arrives after the run has been
@@ -342,6 +352,25 @@ async function executeRun(
           // the run record while keeping a sanitized version available
           // for any user/LLM-facing surface.
           const technical = err instanceof Error ? err.message : String(err);
+          if (err instanceof PrimitiveValidationError) {
+            // Validation failed before the handler ran. Surface a clean
+            // tool error to the LLM so it can correct its arguments
+            // instead of producing a garbage API call. Don't abort the
+            // whole run — the model gets a chance to retry with the
+            // correct shape.
+            await safeAppendActivity({
+              run_id: run.id,
+              kind: "error",
+              text: `Couldn't ${prim.label.toLowerCase()} — the assistant called it with invalid arguments.`,
+            });
+            toolResults.push({
+              type: "tool_result",
+              tool_use_id: tu.id,
+              content: `Invalid arguments: ${sanitizeForLLM(err.details)}. Re-read the tool's input schema and call it again with the correct shape.`,
+              is_error: true,
+            });
+            continue;
+          }
           const friendly = humanizeRuntimeError(prim.label, technical);
           throw new ToolFailureError(
             prim.label,

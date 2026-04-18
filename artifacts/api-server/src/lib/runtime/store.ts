@@ -8,6 +8,13 @@ import {
   DeployedAgent,
   Run,
 } from "@workspace/api-zod";
+import {
+  atomicWriteFile,
+  fileSize,
+  readFileTail,
+  rotateIfNeeded,
+} from "./atomic";
+import { redactValue } from "./redact";
 
 const DATA_DIR = process.env.AGENT_RUNTIME_DIR
   ? path.resolve(process.env.AGENT_RUNTIME_DIR)
@@ -16,6 +23,12 @@ const AGENTS_FILE = path.join(DATA_DIR, "agents.json");
 const ACTIVITY_DIR = path.join(DATA_DIR, "activity");
 const RUNS_DIR = path.join(DATA_DIR, "runs");
 const SCHEDULER_FILE = path.join(DATA_DIR, "scheduler.json");
+
+// Cap a single activity log segment at ~2MB before rotating. Combined with
+// tail-reading, this means the dashboard endpoint never has to slurp more
+// than a few MB even after months of chatter.
+const ACTIVITY_MAX_BYTES = 2 * 1024 * 1024;
+const ACTIVITY_TAIL_BYTES = 512 * 1024;
 
 function ensureDirSync() {
   fsSync.mkdirSync(ACTIVITY_DIR, { recursive: true });
@@ -60,14 +73,20 @@ async function load(): Promise<void> {
 
 let saveQueue: Promise<void> = Promise.resolve();
 function persist(): Promise<void> {
-  saveQueue = saveQueue.then(async () => {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-    await fs.writeFile(
-      AGENTS_FILE,
-      JSON.stringify({ agents: state.agents }, null, 2),
-    );
-  });
-  return saveQueue;
+  const next = saveQueue.then(
+    () =>
+      atomicWriteFile(
+        AGENTS_FILE,
+        JSON.stringify({ agents: state.agents }, null, 2),
+      ),
+    () =>
+      atomicWriteFile(
+        AGENTS_FILE,
+        JSON.stringify({ agents: state.agents }, null, 2),
+      ),
+  );
+  saveQueue = next.catch(() => undefined);
+  return next;
 }
 
 export async function listDeployedAgents(): Promise<DeployedAgent[]> {
@@ -148,23 +167,12 @@ let schedulerSaveQueue: Promise<void> = Promise.resolve();
 export function saveSchedulerState(
   lastFired: Record<string, number>,
 ): Promise<void> {
-  const next = schedulerSaveQueue.then(
-    async () => {
-      await fs.mkdir(DATA_DIR, { recursive: true });
-      await fs.writeFile(
-        SCHEDULER_FILE,
-        JSON.stringify({ last_fired: lastFired }, null, 2),
-      );
-    },
-    async () => {
-      // Recover from a previous failed write so future saves can proceed.
-      await fs.mkdir(DATA_DIR, { recursive: true });
-      await fs.writeFile(
-        SCHEDULER_FILE,
-        JSON.stringify({ last_fired: lastFired }, null, 2),
-      );
-    },
-  );
+  const doWrite = () =>
+    atomicWriteFile(
+      SCHEDULER_FILE,
+      JSON.stringify({ last_fired: lastFired }, null, 2),
+    );
+  const next = schedulerSaveQueue.then(doWrite, doWrite);
   schedulerSaveQueue = next.catch(() => undefined);
   return next;
 }
@@ -181,6 +189,13 @@ function activityFile(agentId: string): string {
   return path.join(ACTIVITY_DIR, `${agentId}.jsonl`);
 }
 
+function sanitizeDetailsForActivity(
+  details: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!details) return details;
+  return redactValue(details) as Record<string, unknown>;
+}
+
 export async function appendActivity(
   agentId: string,
   evt: Omit<ActivityEvent, "id" | "ts"> & { id?: string; ts?: number },
@@ -191,10 +206,12 @@ export async function appendActivity(
     run_id: evt.run_id ?? null,
     kind: evt.kind,
     text: evt.text,
-    details: evt.details,
+    details: sanitizeDetailsForActivity(evt.details),
   };
   await fs.mkdir(ACTIVITY_DIR, { recursive: true });
-  await fs.appendFile(activityFile(agentId), JSON.stringify(full) + "\n");
+  const file = activityFile(agentId);
+  await rotateIfNeeded(file, ACTIVITY_MAX_BYTES);
+  await fs.appendFile(file, JSON.stringify(full) + "\n");
   for (const l of listeners) {
     if (l.agentId === agentId) {
       try {
@@ -211,18 +228,24 @@ export async function readActivity(
   agentId: string,
   limit = 200,
 ): Promise<ActivityEvent[]> {
+  const file = activityFile(agentId);
   try {
-    const raw = await fs.readFile(activityFile(agentId), "utf-8");
+    const size = await fileSize(file);
+    if (size === 0) return [];
+    const tailBytes = Math.min(size, ACTIVITY_TAIL_BYTES);
+    const raw = await readFileTail(file, tailBytes);
     const lines = raw.split("\n").filter(Boolean);
     const events: ActivityEvent[] = [];
-    for (const line of lines) {
+    // Parse from the end and stop once we have `limit` entries — bounded
+    // both by the tail-byte cap above and the requested limit.
+    for (let i = lines.length - 1; i >= 0 && events.length < limit; i--) {
       try {
-        events.push(JSON.parse(line) as ActivityEvent);
+        events.push(JSON.parse(lines[i]!) as ActivityEvent);
       } catch {
-        // skip
+        // skip malformed line
       }
     }
-    return events.slice(-limit);
+    return events.reverse();
   } catch {
     return [];
   }
