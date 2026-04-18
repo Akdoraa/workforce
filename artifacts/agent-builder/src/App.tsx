@@ -1,12 +1,8 @@
 import { useAgentStore } from "@/lib/store";
-import {
-  handleUserPrompt,
-  connectCredentials,
-  disconnect,
-} from "@/lib/agent-logic";
+import { runBuilderTurn } from "@/lib/agent-logic";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatArea } from "@/components/ChatArea";
-import { RightPanel } from "@/components/RightPanel";
+import { BlueprintPreview } from "@/components/BlueprintPreview";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -18,30 +14,16 @@ function App() {
   const agent = store.currentAgent;
   const hasStarted = !!agent && agent.messages.length > 0;
 
-  const onSend = (text: string) => {
+  const handleSend = (text: string) => {
     if (!agent) return;
-    handleUserPrompt(text, agent, store.updateAgent, store.addMessageTo);
-  };
-
-  const onConnect = (apiKey: string, email: string) => {
-    if (!agent) return;
-    connectCredentials(
+    runBuilderTurn({
+      userText: text,
       agent,
-      apiKey,
-      email,
-      store.updateAgent,
-      store.addMessageTo,
-    );
-  };
-
-  const onToggleRunning = () => {
-    if (!agent) return;
-    store.updateAgent(agent.id, { isRunning: !agent.isRunning });
-  };
-
-  const onDisconnect = () => {
-    if (!agent) return;
-    disconnect(agent, store.updateAgent);
+      updateAgent: store.updateAgent,
+      patchBlueprint: store.patchBlueprint,
+      addMessageTo: store.addMessageTo,
+      appendToMessage: store.appendToMessage,
+    });
   };
 
   return (
@@ -56,17 +38,17 @@ function App() {
             <ResizablePanel defaultSize={36} minSize={26} maxSize={55}>
               <ChatArea
                 agent={agent}
-                onSendMessage={onSend}
+                onSendMessage={handleSend}
                 variant="compact"
               />
             </ResizablePanel>
             <ResizableHandle />
             <ResizablePanel defaultSize={48} minSize={30}>
-              <RightPanel
+              <BlueprintPreview
                 agent={agent}
-                onConnect={onConnect}
-                onToggleRunning={onToggleRunning}
-                onDisconnect={onDisconnect}
+                onUpdateAgent={(updates) =>
+                  store.updateAgent(agent.id, updates)
+                }
               />
             </ResizablePanel>
           </>
@@ -74,7 +56,7 @@ function App() {
           <ResizablePanel defaultSize={84}>
             <ChatArea
               agent={agent}
-              onSendMessage={onSend}
+              onSendMessage={handleSend}
               variant="welcome"
             />
           </ResizablePanel>
