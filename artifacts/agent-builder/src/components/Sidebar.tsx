@@ -9,7 +9,7 @@ interface SidebarProps {
 export function Sidebar({ onNewAgent }: SidebarProps) {
   return (
     <div className="h-full bg-sidebar flex flex-col text-sm border-r border-sidebar-border">
-      <div className="p-3">
+      <div className="p-3 pl-12">
         <Button
           onClick={onNewAgent}
           variant="outline"
