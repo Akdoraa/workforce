@@ -27,6 +27,22 @@ export async function fetchConnections(): Promise<ConnectionStatus[]> {
   return data.connections ?? [];
 }
 
+/**
+ * Tell the server to drop its cached view of one connection and re-read it
+ * from the connectors SDK. Used after the user finishes connect / reconnect
+ * / disconnect on the Replit account page so the UI flips state immediately
+ * instead of waiting for the cache TTL.
+ */
+export async function refreshConnection(
+  id: string,
+): Promise<ConnectionStatus | null> {
+  const res = await fetch(`${API_BASE}/connections/${id}/refresh`, {
+    method: "POST",
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as ConnectionStatus;
+}
+
 export async function deployAgentBlueprint(
   agentId: string,
   blueprint: Blueprint,

@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { ChatArea } from "@/components/ChatArea";
 import { BlueprintPreview } from "@/components/BlueprintPreview";
 import { DeployedAgentDashboard } from "@/components/DeployedAgent";
+import { ConnectionsScreen } from "@/components/ConnectionsScreen";
 import { Button } from "@/components/ui/button";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import {
@@ -13,11 +14,17 @@ import {
   ResizableHandle,
 } from "@/components/ui/resizable";
 
+type ActiveView = "agent" | "connections";
+
 function App() {
   const store = useAgentStore();
   const agent = store.currentAgent;
   const hasStarted = !!agent && agent.phase !== "welcome";
   const [sidebarHidden, setSidebarHidden] = useState(false);
+  const [activeView, setActiveView] = useState<ActiveView>("agent");
+  const [connectionsHighlight, setConnectionsHighlight] = useState<
+    string | null
+  >(null);
 
   const handleSend = (text: string) => {
     if (!agent) return;
@@ -46,6 +53,16 @@ function App() {
     store.updateAgent(agent.id, { phase: "welcome" });
   };
 
+  const handleNewAgent = () => {
+    store.createNewAgent();
+    setActiveView("agent");
+  };
+
+  const handleOpenConnections = (highlightId?: string) => {
+    setConnectionsHighlight(highlightId ?? null);
+    setActiveView("connections");
+  };
+
   return (
     <div className="h-screen w-full bg-background overflow-hidden text-foreground relative">
       <Button
@@ -66,12 +83,23 @@ function App() {
         {!sidebarHidden && (
           <>
             <ResizablePanel defaultSize={16} minSize={12} maxSize={24}>
-              <Sidebar onNewAgent={store.createNewAgent} />
+              <Sidebar
+                onNewAgent={handleNewAgent}
+                onOpenConnections={() => handleOpenConnections()}
+                activeView={activeView}
+              />
             </ResizablePanel>
             <ResizableHandle />
           </>
         )}
-        {hasStarted && agent ? (
+        {activeView === "connections" ? (
+          <ResizablePanel defaultSize={84}>
+            <ConnectionsScreen
+              highlightId={connectionsHighlight}
+              onHighlightConsumed={() => setConnectionsHighlight(null)}
+            />
+          </ResizablePanel>
+        ) : hasStarted && agent ? (
           <>
             <ResizablePanel defaultSize={36} minSize={26} maxSize={55}>
               <ChatArea
@@ -86,6 +114,7 @@ function App() {
                 <DeployedAgentDashboard
                   deploymentId={agent.deploymentId}
                   onDisconnect={handleClose}
+                  onOpenConnections={handleOpenConnections}
                 />
               ) : (
                 <BlueprintPreview

@@ -1,12 +1,18 @@
 import { Button } from "@/components/ui/button";
-import { Plus, Settings } from "lucide-react";
+import { Plug2, Plus, Settings } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 interface SidebarProps {
   onNewAgent: () => void;
+  onOpenConnections: () => void;
+  activeView: "agent" | "connections";
 }
 
-export function Sidebar({ onNewAgent }: SidebarProps) {
+export function Sidebar({
+  onNewAgent,
+  onOpenConnections,
+  activeView,
+}: SidebarProps) {
   return (
     <div className="h-full bg-sidebar flex flex-col text-sm border-r border-sidebar-border">
       <div className="p-3 pl-12">
@@ -18,6 +24,21 @@ export function Sidebar({ onNewAgent }: SidebarProps) {
           <Plus className="h-4 w-4" />
           New Agent
         </Button>
+      </div>
+
+      <div className="px-3">
+        <button
+          type="button"
+          onClick={onOpenConnections}
+          className={`w-full flex items-center gap-2 px-3 py-2 rounded-md transition-colors duration-150 text-sm ${
+            activeView === "connections"
+              ? "bg-sidebar-accent text-sidebar-foreground"
+              : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          }`}
+        >
+          <Plug2 className="h-4 w-4" />
+          <span className="font-medium">Connections</span>
+        </button>
       </div>
 
       <div className="flex-1" />

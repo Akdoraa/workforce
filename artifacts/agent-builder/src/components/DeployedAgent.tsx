@@ -9,6 +9,7 @@ import {
   Pause,
   Play,
   Power,
+  RefreshCw,
   Sparkles,
   WifiOff,
   XCircle,
@@ -57,9 +58,19 @@ function fmtRelative(ts: number): string {
 interface Props {
   deploymentId: string;
   onDisconnect: () => void;
+  /**
+   * Open the global Connections screen, optionally scrolled to and
+   * highlighting one integration row. Used by the run-status card to
+   * deep-link a "Reconnect" button on missing-scope failures.
+   */
+  onOpenConnections: (highlightId?: string) => void;
 }
 
-export function DeployedAgentDashboard({ deploymentId, onDisconnect }: Props) {
+export function DeployedAgentDashboard({
+  deploymentId,
+  onDisconnect,
+  onOpenConnections,
+}: Props) {
   const [agent, setAgent] = useState<DeployedAgent | null>(null);
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [connections, setConnections] = useState<ConnectionStatus[]>([]);
@@ -324,6 +335,38 @@ export function DeployedAgentDashboard({ deploymentId, onDisconnect }: Props) {
                       <div className="text-xs text-muted-foreground pl-4">
                         {last.failure_summary}
                       </div>
+                    ) : null}
+                    {last.failed_integration_id ? (
+                      (() => {
+                        const failed = bp.integrations.find(
+                          (i) => i.id === last.failed_integration_id,
+                        );
+                        const connStatus = connections.find(
+                          (c) => c.id === last.failed_integration_id,
+                        );
+                        const label =
+                          connStatus?.identity ??
+                          connStatus?.display_name ??
+                          failed?.name ??
+                          "this account";
+                        return (
+                          <div className="pl-4 pt-1">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() =>
+                                onOpenConnections(
+                                  last.failed_integration_id ?? undefined,
+                                )
+                              }
+                              className="h-7 gap-1.5"
+                            >
+                              <RefreshCw className="h-3 w-3" /> Reconnect{" "}
+                              {label}
+                            </Button>
+                          </div>
+                        );
+                      })()
                     ) : null}
                   </div>
                 ) : (

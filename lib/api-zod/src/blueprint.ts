@@ -151,6 +151,12 @@ export const Run = z.object({
   status: RunStatus,
   failure_reason: z.string().nullable().default(null),
   failure_summary: z.string().nullable().default(null),
+  /**
+   * Set when a run aborts because a connected account couldn't authorize
+   * the action (missing scope, revoked, etc.). The dashboard uses this to
+   * deep-link a "Reconnect" button to the Connections screen.
+   */
+  failed_integration_id: z.string().nullable().default(null),
   tool_call_count: z.number().default(0),
 });
 export type Run = z.infer<typeof Run>;

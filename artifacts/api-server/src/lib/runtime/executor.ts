@@ -51,9 +51,31 @@ class ToolFailureError extends Error {
     public friendly: string,
     public technical: string,
     public sanitized: string,
+    public integrationId: string | null = null,
   ) {
     super(`Tool '${toolLabel}' failed: ${technical}`);
   }
+}
+
+/**
+ * Heuristic: does this technical error indicate the connected account
+ * needs to be reconnected (missing scope / revoked / not authorized)?
+ * Mirrors the patterns humanizeRuntimeError uses.
+ */
+function isAuthFailure(technical: string): boolean {
+  const lower = technical.toLowerCase();
+  return (
+    lower.includes("access_token_scope_insufficient") ||
+    lower.includes("insufficient permission") ||
+    lower.includes("insufficient authentication scopes") ||
+    lower.includes("insufficientpermissions") ||
+    lower.includes("not connected") ||
+    lower.includes("unauthorized") ||
+    lower.includes("forbidden") ||
+    lower.includes("connector lookup failed") ||
+    lower.includes("no access token") ||
+    /\b(?:401|403)\b/.test(lower)
+  );
 }
 
 function withTimeout<T>(
@@ -383,6 +405,7 @@ async function executeRun(
             friendly,
             technical,
             sanitizeForLLM(technical),
+            isAuthFailure(technical) ? prim.integration_id : null,
           );
         }
       }
@@ -450,12 +473,15 @@ async function executeRun(
       text: userText,
     });
     runEnded = true;
+    const failedIntegrationId =
+      err instanceof ToolFailureError ? err.integrationId : null;
     await updateRun(agent.id, run.id, {
       status,
       ended_at: endedAt,
       tool_call_count: toolCallCount,
       failure_reason: technical,
       failure_summary: userText,
+      failed_integration_id: failedIntegrationId,
     });
     return {
       run_id: run.id,
