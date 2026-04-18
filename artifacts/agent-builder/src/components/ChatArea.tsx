@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Agent, type MessageActivity } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { ArrowUp, User, Check, Loader2 } from "lucide-react";
@@ -252,9 +254,28 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
                         : "bg-card border border-border text-foreground rounded-tl-sm"
                     }`}
                   >
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                      {msg.content}
-                    </p>
+                    {msg.role === "user" ? (
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                        {msg.content}
+                      </p>
+                    ) : (
+                      <div className="text-sm leading-relaxed space-y-2 [&_p]:whitespace-pre-wrap [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5 [&_strong]:font-semibold [&_em]:italic [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            a: ({ node, ...props }) => (
+                              <a
+                                {...props}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              />
+                            ),
+                          }}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      </div>
+                    )}
                   </div>
                 )}
 
