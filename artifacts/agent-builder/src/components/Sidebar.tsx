@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Plug2, Plus, Settings } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import type { Agent } from "@/lib/store";
+import type { Agent, Status } from "@/lib/store";
 
 interface SidebarProps {
   onNewAgent: () => void;
@@ -11,6 +11,13 @@ interface SidebarProps {
   agents: Agent[];
   currentAgentId: string | null;
 }
+
+const STATUS_DOT: Record<Status, string> = {
+  Drafting: "bg-muted-foreground/50",
+  Ready: "bg-blue-500",
+  Deploying: "bg-amber-500",
+  Deployed: "bg-emerald-500",
+};
 
 export function Sidebar({
   onNewAgent,
@@ -33,7 +40,7 @@ export function Sidebar({
         </Button>
       </div>
 
-      <div className="px-3">
+      <div className="px-3 flex-1 min-h-0 flex flex-col">
         <button
           type="button"
           onClick={onOpenConnections}
@@ -46,34 +53,44 @@ export function Sidebar({
           <Plug2 className="h-4 w-4" />
           <span className="font-medium">Connections</span>
         </button>
-      </div>
 
-      <div className="flex-1 overflow-y-auto px-3 mt-2">
         {agents.length > 0 && (
-          <div className="text-[10px] uppercase tracking-wider text-sidebar-foreground/50 px-3 pt-2 pb-1">
-            Agents
+          <div className="mt-4 flex-1 min-h-0 flex flex-col">
+            <div className="px-3 pb-1 text-xs uppercase tracking-wide text-sidebar-foreground/50">
+              Agents
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto pr-0.5">
+              {agents.map((a) => {
+                const isActive =
+                  activeView === "agent" && a.id === currentAgentId;
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => onSelectAgent(a.id)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-md transition-colors duration-150 text-sm text-left ${
+                      isActive
+                        ? "bg-sidebar-accent text-sidebar-foreground"
+                        : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                    }`}
+                    title={`${a.name} — ${a.status}`}
+                  >
+                    <span
+                      className={`h-2 w-2 rounded-full shrink-0 ${STATUS_DOT[a.status]}`}
+                      aria-hidden
+                    />
+                    <span className="flex-1 truncate font-medium">
+                      {a.name}
+                    </span>
+                    <span className="text-xs text-sidebar-foreground/50 shrink-0">
+                      {a.status}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
-        <div className="flex flex-col gap-0.5">
-          {agents.map((a) => {
-            const isActive = activeView === "agent" && a.id === currentAgentId;
-            return (
-              <button
-                key={a.id}
-                type="button"
-                onClick={() => onSelectAgent(a.id)}
-                className={`w-full text-left px-3 py-2 rounded-md transition-colors duration-150 truncate ${
-                  isActive
-                    ? "bg-sidebar-accent text-sidebar-foreground"
-                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                }`}
-                title={a.name}
-              >
-                <span className="font-medium truncate">{a.name}</span>
-              </button>
-            );
-          })}
-        </div>
       </div>
 
       <div className="p-3 border-t border-sidebar-border">

@@ -63,6 +63,11 @@ function App() {
     setActiveView("connections");
   };
 
+  const handleSelectAgent = (id: string) => {
+    store.switchAgent(id);
+    setActiveView("agent");
+  };
+
   return (
     <div className="h-screen w-full bg-background overflow-hidden text-foreground relative">
       <Button
@@ -86,10 +91,7 @@ function App() {
               <Sidebar
                 onNewAgent={handleNewAgent}
                 onOpenConnections={() => handleOpenConnections()}
-                onSelectAgent={(id) => {
-                  store.switchAgent(id);
-                  setActiveView("agent");
-                }}
+                onSelectAgent={handleSelectAgent}
                 activeView={activeView}
                 agents={store.agents}
                 currentAgentId={store.currentAgent?.id ?? null}
