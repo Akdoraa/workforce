@@ -214,7 +214,7 @@ export const GMAIL_PRIMITIVES: IntegrationPrimitive[] = [
     integration_id: "gmail",
     label: "Send email",
     description:
-      "Send an email from your account. Supports plain text body. Provide 'to' (comma-separated) and 'subject' and 'body'.",
+      "Send a plain-text email from your account. Provide 'to' (comma-separated), 'subject', and 'body'. Optionally pass `summary_metrics` ({ kind, count, total }) — when set, the activity stream and tool result will use a canonical payoff line like 'Sent revenue summary for N charges totaling $X to <to>. Gmail message id: <id>.' so the deployed agent doesn't have to format that line itself.",
     input_schema: {
       type: "object",
       properties: {
@@ -222,6 +222,29 @@ export const GMAIL_PRIMITIVES: IntegrationPrimitive[] = [
         subject: { type: "string" },
         body: { type: "string" },
         reply_to_message_id: { type: "string" },
+        summary_metrics: {
+          type: "object",
+          properties: {
+            kind: {
+              type: "string",
+              description:
+                "Short noun describing what was summarized, e.g. 'revenue summary', 'open invoices'.",
+            },
+            count: {
+              type: "number",
+              description: "How many items the summary covers (e.g. number of charges).",
+            },
+            unit: {
+              type: "string",
+              description: "Plural noun for the items, e.g. 'charges', 'invoices'.",
+            },
+            total: {
+              type: "string",
+              description:
+                "Pre-formatted total string, e.g. '$1,234.56' or '€500.00'. Use the formatted total returned by stripe_list_charges.",
+            },
+          },
+        },
       },
       required: ["to", "subject", "body"],
     },
@@ -232,6 +255,11 @@ export const GMAIL_PRIMITIVES: IntegrationPrimitive[] = [
       const replyId = input["reply_to_message_id"]
         ? String(input["reply_to_message_id"])
         : undefined;
+      const metricsRaw = input["summary_metrics"];
+      const metrics =
+        metricsRaw && typeof metricsRaw === "object"
+          ? (metricsRaw as Record<string, unknown>)
+          : null;
       const lines = [
         `To: ${to}`,
         `Subject: ${subject}`,
@@ -254,10 +282,38 @@ export const GMAIL_PRIMITIVES: IntegrationPrimitive[] = [
           body: JSON.stringify(payload),
         },
       );
-      ctx.log(`Sent email to ${to} ("${subject}").`);
+      // When the caller supplies summary_metrics, format the canonical
+      // payoff line in code so the activity stream and the deployed
+      // agent both get the exact same wording. This is what the
+      // "Stripe daily revenue" demo relies on for its closing line.
+      let payoff: string;
+      if (metrics) {
+        const kind = String(metrics["kind"] ?? "summary");
+        const count =
+          typeof metrics["count"] === "number"
+            ? metrics["count"]
+            : Number(metrics["count"] ?? 0);
+        const unit = String(
+          metrics["unit"] ?? (count === 1 ? "item" : "items"),
+        );
+        const total = metrics["total"]
+          ? ` totaling ${String(metrics["total"])}`
+          : "";
+        payoff = `Sent ${kind} for ${count} ${unit}${total} to ${to}. Gmail message id: ${result.id}.`;
+      } else {
+        payoff = `Sent email to ${to} ("${subject}"). Gmail message id: ${result.id}.`;
+      }
+      ctx.log(payoff);
       return {
-        summary: `Sent email to ${to} ("${subject}").`,
-        data: { id: result.id, thread_id: result.threadId },
+        summary: payoff,
+        data: {
+          id: result.id,
+          message_id: result.id,
+          thread_id: result.threadId,
+          to,
+          subject,
+          payoff,
+        },
       };
     },
   },

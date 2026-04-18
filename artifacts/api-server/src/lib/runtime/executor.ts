@@ -131,7 +131,10 @@ function sanitizeForLLM(msg: string): string {
     .slice(0, 500);
 }
 
-function buildSystemPrompt(bp: Blueprint, taskDescription: string): string {
+async function buildSystemPrompt(
+  bp: Blueprint,
+  taskDescription: string,
+): Promise<string> {
   const sections: string[] = [];
   if (bp.soul) sections.push(`# SOUL.md (voice)\n${bp.soul}`);
   if (bp.agents_md)
@@ -142,11 +145,31 @@ function buildSystemPrompt(bp: Blueprint, taskDescription: string): string {
   // into AGENTS.md.
   sections.push(EXTERNAL_CONTENT_SECURITY_RULE);
   if (bp.system_prompt) sections.push(`# Job\n${bp.system_prompt}`);
-  sections.push(
-    `# Connected accounts\n${bp.integrations.map((i) => `- ${i.name} — ${i.label ?? i.name}`).join("\n")}`,
+
+  // Resolve the connected identity for each integration so the agent
+  // knows e.g. *which* Gmail address to send "to me" mail to. Failures
+  // are non-fatal — we just omit the identity line.
+  const accountLines = await Promise.all(
+    bp.integrations.map(async (i) => {
+      const integ = findIntegration(i.id);
+      if (!integ) return `- ${i.name} — ${i.label ?? i.name}`;
+      try {
+        const acct = await getConnectorAccount(integ.connector_name, {
+          required_scopes: integ.required_scopes,
+          scope_equivalents: integ.scope_equivalents,
+        });
+        const ident = acct.identity ?? acct.display_name;
+        return ident
+          ? `- ${i.name} (signed in as ${ident}) — ${i.label ?? i.name}`
+          : `- ${i.name} — ${i.label ?? i.name}`;
+      } catch {
+        return `- ${i.name} — ${i.label ?? i.name}`;
+      }
+    }),
   );
+  sections.push(`# Connected accounts\n${accountLines.join("\n")}`);
   sections.push(
-    `# Current invocation\n${taskDescription}\n\nWork autonomously. When done, give a one-paragraph summary of what you did. Use the available tools to actually act on the user's accounts — don't simulate or describe; do it.`,
+    `# Current invocation\n${taskDescription}\n\nWork autonomously. When done, give a one-paragraph summary of what you did. Use the available tools to actually act on the user's accounts — don't simulate or describe; do it. When the user says "me" / "my inbox" / "my email", use the address listed under Connected accounts above.`,
   );
   return sections.join("\n\n");
 }
@@ -252,7 +275,7 @@ async function executeRun(
   const deadline = run.started_at + runTimeoutMs;
 
   const tools = buildAnthropicTools(bp);
-  const systemPrompt = buildSystemPrompt(bp, task);
+  const systemPrompt = await buildSystemPrompt(bp, task);
   const messages: Anthropic.MessageParam[] = [
     { role: "user", content: task },
   ];
