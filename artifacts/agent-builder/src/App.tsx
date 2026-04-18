@@ -86,7 +86,13 @@ function App() {
               <Sidebar
                 onNewAgent={handleNewAgent}
                 onOpenConnections={() => handleOpenConnections()}
+                onSelectAgent={(id) => {
+                  store.switchAgent(id);
+                  setActiveView("agent");
+                }}
                 activeView={activeView}
+                agents={store.agents}
+                currentAgentId={store.currentAgent?.id ?? null}
               />
             </ResizablePanel>
             <ResizableHandle />

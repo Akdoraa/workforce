@@ -2,23 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Plug, RefreshCw } from "lucide-react";
 import { fetchConnections, type ConnectionStatus } from "@/lib/agent-api";
-import gmailIcon from "@assets/image_1776501311466.png";
-import hubspotIcon from "@assets/image_1776501330582.png";
-import stripeIcon from "@assets/image_1776501341190.png";
-import driveIcon from "@assets/image_1776501349581.png";
-import sheetsIcon from "@assets/image_1776501356954.png";
-import docsIcon from "@assets/image_1776501363462.png";
-import notionIcon from "@assets/image_1776501370450.png";
-
-const BRAND_ICONS: Record<string, string> = {
-  gmail: gmailIcon,
-  hubspot: hubspotIcon,
-  stripe: stripeIcon,
-  drive: driveIcon,
-  sheets: sheetsIcon,
-  docs: docsIcon,
-  notion: notionIcon,
-};
+import { BRAND_ICONS } from "@/lib/brand-icons";
 
 interface ConnectCardProps {
   integrationId: string;

@@ -13,6 +13,7 @@ import {
   refreshConnection,
   type ConnectionStatus,
 } from "@/lib/agent-api";
+import { BRAND_ICONS } from "@/lib/brand-icons";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -201,12 +202,22 @@ export function ConnectionsScreen({ highlightId, onHighlightConsumed }: Props) {
                   }`}
                 >
                   <div className="px-4 py-4 flex items-center gap-3">
-                    <div
-                      className="h-10 w-10 rounded-lg flex items-center justify-center text-white text-base font-bold shrink-0"
-                      style={{ backgroundColor: c.brand_color || "#888" }}
-                    >
-                      {c.name.slice(0, 1)}
-                    </div>
+                    {BRAND_ICONS[c.id] ? (
+                      <div className="h-10 w-10 rounded-lg bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden">
+                        <img
+                          src={BRAND_ICONS[c.id]}
+                          alt=""
+                          className="h-7 w-7 object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        className="h-10 w-10 rounded-lg flex items-center justify-center text-white text-base font-bold shrink-0"
+                        style={{ backgroundColor: c.brand_color || "#888" }}
+                      >
+                        {c.name.slice(0, 1)}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium truncate flex items-center gap-2">
                         {c.name}
