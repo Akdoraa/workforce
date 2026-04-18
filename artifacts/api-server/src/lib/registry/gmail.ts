@@ -1,4 +1,5 @@
 import { connectorFetch } from "../connectors";
+import { wrapExternalContent } from "./external";
 import type { IntegrationDefinition, IntegrationPrimitive } from "./types";
 
 export const GMAIL_INTEGRATION: IntegrationDefinition = {
@@ -128,10 +129,19 @@ export const GMAIL_PRIMITIVES: IntegrationPrimitive[] = [
             const first = detail.messages?.[0];
             return {
               thread_id: t.id,
-              subject: getHeader(first?.payload?.headers, "Subject"),
-              from: getHeader(first?.payload?.headers, "From"),
+              subject: wrapExternalContent(
+                "gmail email subject",
+                getHeader(first?.payload?.headers, "Subject"),
+              ),
+              from: wrapExternalContent(
+                "gmail email sender",
+                getHeader(first?.payload?.headers, "From"),
+              ),
               date: getHeader(first?.payload?.headers, "Date"),
-              snippet: t.snippet ?? first?.snippet ?? "",
+              snippet: wrapExternalContent(
+                "gmail email snippet",
+                t.snippet ?? first?.snippet ?? "",
+              ),
             };
           } catch {
             return { thread_id: t.id, subject: "", from: "", snippet: "" };
@@ -170,16 +180,31 @@ export const GMAIL_PRIMITIVES: IntegrationPrimitive[] = [
       }>(`/gmail/v1/users/me/threads/${id}?format=full`);
       const messages = (detail.messages ?? []).map((m) => ({
         id: m.id,
-        from: getHeader(m.payload?.headers, "From"),
+        from: wrapExternalContent(
+          "gmail email sender",
+          getHeader(m.payload?.headers, "From"),
+        ),
         to: getHeader(m.payload?.headers, "To"),
-        subject: getHeader(m.payload?.headers, "Subject"),
+        subject: wrapExternalContent(
+          "gmail email subject",
+          getHeader(m.payload?.headers, "Subject"),
+        ),
         date: getHeader(m.payload?.headers, "Date"),
-        snippet: m.snippet,
-        body: extractText(m.payload).slice(0, 4000),
+        snippet: wrapExternalContent(
+          "gmail email snippet",
+          m.snippet ?? "",
+        ),
+        body: wrapExternalContent(
+          "gmail email body",
+          extractText(m.payload).slice(0, 4000),
+        ),
       }));
       ctx.log(`Read thread ${id} (${messages.length} messages).`);
       return {
-        summary: `Read thread "${messages[0]?.subject ?? id}" (${messages.length} messages).`,
+        summary: `Read thread ${id} (${messages.length} messages). Subject: ${wrapExternalContent(
+          "gmail email subject",
+          getHeader(detail.messages?.[0]?.payload?.headers, "Subject") || "",
+        )}`,
         data: messages,
       };
     },

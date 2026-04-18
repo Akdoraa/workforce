@@ -9,6 +9,7 @@ import {
   RunTriggerSource,
 } from "@workspace/api-zod";
 import {
+  EXTERNAL_CONTENT_SECURITY_RULE,
   findIntegration,
   findPrimitive,
   invokePrimitive,
@@ -107,6 +108,11 @@ function buildSystemPrompt(bp: Blueprint, taskDescription: string): string {
   if (bp.soul) sections.push(`# SOUL.md (voice)\n${bp.soul}`);
   if (bp.agents_md)
     sections.push(`# AGENTS.md (operating rules)\n${bp.agents_md}`);
+  // Always-on baseline rule teaching the agent how to interpret the
+  // envelope produced by `wrapExternalContent`. Injected by the runtime
+  // so every deployed agent gets it regardless of what the builder put
+  // into AGENTS.md.
+  sections.push(EXTERNAL_CONTENT_SECURITY_RULE);
   if (bp.system_prompt) sections.push(`# Job\n${bp.system_prompt}`);
   sections.push(
     `# Connected accounts\n${bp.integrations.map((i) => `- ${i.name} — ${i.label ?? i.name}`).join("\n")}`,

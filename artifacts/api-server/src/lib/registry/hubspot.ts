@@ -1,5 +1,11 @@
 import { connectorFetch } from "../connectors";
+import { wrapExternalContent } from "./external";
 import type { IntegrationDefinition, IntegrationPrimitive } from "./types";
+
+function wrapMaybe(source: string, value: string | null | undefined): string | null {
+  if (value === null || value === undefined || value === "") return value ?? null;
+  return wrapExternalContent(source, value);
+}
 
 export const HUBSPOT_INTEGRATION: IntegrationDefinition = {
   id: "hubspot",
@@ -99,11 +105,14 @@ export const HUBSPOT_PRIMITIVES: IntegrationPrimitive[] = [
       );
       const contacts = data.results.map((c) => ({
         id: c.id,
-        email: c.properties["email"],
-        name: [c.properties["firstname"], c.properties["lastname"]]
-          .filter(Boolean)
-          .join(" "),
-        company: c.properties["company"],
+        email: wrapMaybe("hubspot contact email", c.properties["email"]),
+        name: wrapMaybe(
+          "hubspot contact name",
+          [c.properties["firstname"], c.properties["lastname"]]
+            .filter(Boolean)
+            .join(" ") || null,
+        ),
+        company: wrapMaybe("hubspot contact company", c.properties["company"]),
         stage: c.properties["lifecyclestage"],
         lead_status: c.properties["hs_lead_status"],
         last_activity: c.properties["notes_last_updated"],
@@ -316,7 +325,7 @@ export const HUBSPOT_PRIMITIVES: IntegrationPrimitive[] = [
       }
       const deals = data.results.map((d) => ({
         id: d.id,
-        name: d.properties["dealname"],
+        name: wrapMaybe("hubspot deal name", d.properties["dealname"]),
         amount: d.properties["amount"],
         stage: d.properties["dealstage"],
         close_date: d.properties["closedate"],

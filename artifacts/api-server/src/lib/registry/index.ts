@@ -18,6 +18,10 @@ export type {
   PrimitiveContext,
   PrimitiveResult,
 } from "./types";
+export {
+  wrapExternalContent,
+  EXTERNAL_CONTENT_SECURITY_RULE,
+} from "./external";
 
 export const INTEGRATIONS: IntegrationDefinition[] = [
   GMAIL_INTEGRATION,
