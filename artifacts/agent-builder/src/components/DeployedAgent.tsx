@@ -60,6 +60,7 @@ export function DeployedAgentDashboard({ deploymentId, onDisconnect }: Props) {
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [connections, setConnections] = useState<ConnectionStatus[]>([]);
   const [running, setRunning] = useState(false);
+  const [runMessage, setRunMessage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -96,8 +97,15 @@ export function DeployedAgentDashboard({ deploymentId, onDisconnect }: Props) {
   const handleRunNow = async () => {
     if (!agent || running) return;
     setRunning(true);
+    setRunMessage(null);
     try {
-      await runAgentNow(agent.id);
+      const result = await runAgentNow(agent.id);
+      if (result.already_running) {
+        setRunMessage(
+          result.error ??
+            "This assistant is already running. Wait for the current run to finish.",
+        );
+      }
     } finally {
       setRunning(false);
       const fresh = await fetchAgent(deploymentId);
@@ -246,6 +254,59 @@ export function DeployedAgentDashboard({ deploymentId, onDisconnect }: Props) {
             </Card>
           </div>
 
+          {(() => {
+            const cur = agent.current_run ?? null;
+            const last = agent.last_run ?? null;
+            return (
+              <Card title="Run status">
+                {cur ? (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Loader2 className="h-3.5 w-3.5 text-primary animate-spin" />
+                    <span>
+                      Running now — started {fmtRelative(cur.started_at)}
+                      {cur.trigger_source === "cron"
+                        ? " (on schedule)"
+                        : " (you started it)"}
+                    </span>
+                  </div>
+                ) : last ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          last.status === "succeeded"
+                            ? "bg-emerald-400"
+                            : last.status === "timed_out"
+                              ? "bg-yellow-400"
+                              : "bg-red-400"
+                        }`}
+                      />
+                      <span>
+                        {last.status === "succeeded"
+                          ? "Last run finished cleanly"
+                          : last.status === "timed_out"
+                            ? "Last run took too long and was stopped"
+                            : "Last run didn't finish"}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {fmtRelative(last.ended_at ?? last.started_at)}
+                      </span>
+                    </div>
+                    {last.failure_summary ? (
+                      <div className="text-xs text-muted-foreground pl-4">
+                        {last.failure_summary}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    Hasn't run yet.
+                  </div>
+                )}
+              </Card>
+            );
+          })()}
+
           <div className="rounded-xl border border-border bg-card overflow-hidden">
             <div className="px-4 py-3 border-b border-border flex items-center gap-2">
               <Activity className="h-4 w-4 text-primary" />
@@ -254,10 +315,19 @@ export function DeployedAgentDashboard({ deploymentId, onDisconnect }: Props) {
                 <Button
                   size="sm"
                   onClick={handleRunNow}
-                  disabled={running || agent.paused}
+                  disabled={
+                    running || agent.paused || Boolean(agent.current_run)
+                  }
+                  title={
+                    agent.current_run
+                      ? "Already running — wait for the current run to finish"
+                      : agent.paused
+                        ? "Resume the assistant to run it now"
+                        : undefined
+                  }
                   className="h-8 gap-1.5"
                 >
-                  {running ? (
+                  {running || agent.current_run ? (
                     <>
                       <Loader2 className="h-3.5 w-3.5 animate-spin" /> Running…
                     </>
@@ -269,6 +339,11 @@ export function DeployedAgentDashboard({ deploymentId, onDisconnect }: Props) {
                 </Button>
               </div>
             </div>
+            {runMessage ? (
+              <div className="px-4 py-2 text-xs text-yellow-300 bg-yellow-500/10 border-b border-yellow-500/20">
+                {runMessage}
+              </div>
+            ) : null}
             <div
               ref={scrollRef}
               className="max-h-96 overflow-y-auto divide-y divide-border"

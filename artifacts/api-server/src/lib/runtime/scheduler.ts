@@ -2,10 +2,11 @@ import {
   getDeployedAgent,
   listDeployedAgents,
   loadSchedulerState,
+  reconcileOrphanRuns,
   saveSchedulerState,
   updateDeployment,
 } from "./store";
-import { runAgent } from "./executor";
+import { startRun } from "./executor";
 import type { BlueprintTrigger, DeployedAgent } from "@workspace/api-zod";
 import { logger } from "../logger";
 
@@ -179,18 +180,32 @@ async function runDueTriggers(): Promise<void> {
       try {
         matches = cronMatches(trig.cron, now, tz);
       } catch (err) {
-        logger.warn({ err, agent: agent.id, trig: trig.id }, "cron parse failed");
+        logger.warn(
+          { err, agent: agent.id, trig: trig.id },
+          "cron parse failed",
+        );
         continue;
       }
       if (!matches) continue;
-      lastFired.set(key, minuteBucket);
-      await persistLastFired();
       const task = trig.task ?? trig.description;
       logger.info({ agent: agent.id, trig: trig.id }, "Trigger firing");
-      void runAgent(agent, task, trig)
-        .then((res) => {
+      const started = await startRun(agent, task, "cron", trig);
+      if (!started.started) {
+        // Don't mark this minute as fired — let the next tick try again
+        // once the in-flight run completes (the agent may still match
+        // before the minute rolls over).
+        logger.info(
+          { agent: agent.id, trig: trig.id, current: started.current_run_id },
+          "Cron trigger skipped — another run is already in progress",
+        );
+        continue;
+      }
+      // Only mark fired *after* the run was successfully started.
+      lastFired.set(key, minuteBucket);
+      await persistLastFired();
+      void started.promise
+        .then(() => {
           void updateDeployment(agent.id, { last_run_at: Date.now() });
-          return res;
         })
         .catch((err) => {
           logger.error({ err, agent: agent.id }, "Run failed");
@@ -199,9 +214,19 @@ async function runDueTriggers(): Promise<void> {
   }
 }
 
-export function startScheduler(): void {
+export async function startScheduler(): Promise<void> {
   if (timer) return;
-  void ensureStateLoaded();
+  await ensureStateLoaded();
+  // Reconcile any runs left mid-flight by a previous server restart
+  // before we start ticking, so the UI never shows phantom forever-running runs.
+  try {
+    const reconciled = await reconcileOrphanRuns();
+    if (reconciled > 0) {
+      logger.info({ reconciled }, "Reconciled orphaned runs on boot");
+    }
+  } catch (err) {
+    logger.warn({ err }, "Failed to reconcile orphaned runs");
+  }
   timer = setInterval(() => {
     void runDueTriggers();
   }, 30_000);
@@ -213,10 +238,19 @@ export function stopScheduler(): void {
   timer = null;
 }
 
+export interface RunNowResponse {
+  run_id: string;
+  ok: boolean;
+  summary: string;
+  status?: "running" | "succeeded" | "failed" | "timed_out";
+  already_running?: boolean;
+  error?: string;
+}
+
 export async function runAgentNow(
   agentId: string,
   taskOverride?: string,
-): Promise<{ run_id: string; summary: string; ok: boolean; error?: string }> {
+): Promise<RunNowResponse> {
   const agent = await getDeployedAgent(agentId);
   if (!agent) throw new Error("Agent not found");
   const task =
@@ -224,9 +258,29 @@ export async function runAgentNow(
     agent.blueprint.triggers[0]?.task ??
     agent.blueprint.triggers[0]?.description ??
     "Do your job now.";
-  const res = await runAgent(agent, task);
-  await updateDeployment(agentId, { last_run_at: Date.now() });
-  return res;
+  const started = await startRun(agent, task, "manual");
+  if (!started.started) {
+    return {
+      run_id: started.current_run_id,
+      ok: false,
+      summary: "",
+      already_running: true,
+      error: "This assistant is already running. Wait for the current run to finish.",
+    };
+  }
+  // Don't block the response on the full run — the activity stream surfaces progress.
+  // Persist last_run_at when the run completes.
+  void started.promise
+    .then(() => updateDeployment(agentId, { last_run_at: Date.now() }))
+    .catch(() => {
+      // Errors are already recorded on the run record + activity log.
+    });
+  return {
+    run_id: started.run.id,
+    ok: true,
+    summary: "",
+    status: "running",
+  };
 }
 
 export function describeNextRun(agent: DeployedAgent): string {

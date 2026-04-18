@@ -6,6 +6,7 @@ import {
   ActivityEvent,
   Blueprint,
   DeployedAgent,
+  Run,
 } from "@workspace/api-zod";
 
 const DATA_DIR = process.env.AGENT_RUNTIME_DIR
@@ -13,10 +14,12 @@ const DATA_DIR = process.env.AGENT_RUNTIME_DIR
   : path.resolve(process.cwd(), ".data", "agents");
 const AGENTS_FILE = path.join(DATA_DIR, "agents.json");
 const ACTIVITY_DIR = path.join(DATA_DIR, "activity");
+const RUNS_DIR = path.join(DATA_DIR, "runs");
 const SCHEDULER_FILE = path.join(DATA_DIR, "scheduler.json");
 
 function ensureDirSync() {
   fsSync.mkdirSync(ACTIVITY_DIR, { recursive: true });
+  fsSync.mkdirSync(RUNS_DIR, { recursive: true });
 }
 ensureDirSync();
 
@@ -223,6 +226,133 @@ export async function readActivity(
   } catch {
     return [];
   }
+}
+
+// -------- Runs --------
+
+function runsFile(agentId: string): string {
+  return path.join(RUNS_DIR, `${agentId}.jsonl`);
+}
+
+let runWriteQueue: Promise<void> = Promise.resolve();
+
+export async function createRun(
+  run: Omit<Run, "id"> & { id?: string },
+): Promise<Run> {
+  const full: Run = Run.parse({ id: run.id ?? randomUUID(), ...run });
+  runWriteQueue = runWriteQueue.then(async () => {
+    await fs.mkdir(RUNS_DIR, { recursive: true });
+    await fs.appendFile(
+      runsFile(full.agent_id),
+      JSON.stringify({ op: "create", run: full }) + "\n",
+    );
+  });
+  await runWriteQueue;
+  return full;
+}
+
+export async function updateRun(
+  agentId: string,
+  runId: string,
+  patch: Partial<Run>,
+): Promise<void> {
+  runWriteQueue = runWriteQueue.then(async () => {
+    await fs.mkdir(RUNS_DIR, { recursive: true });
+    await fs.appendFile(
+      runsFile(agentId),
+      JSON.stringify({ op: "update", id: runId, patch }) + "\n",
+    );
+  });
+  await runWriteQueue;
+}
+
+async function readRunsForAgent(agentId: string): Promise<Run[]> {
+  let raw: string;
+  try {
+    raw = await fs.readFile(runsFile(agentId), "utf-8");
+  } catch {
+    return [];
+  }
+  const byId = new Map<string, Run>();
+  const order: string[] = [];
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    let entry: { op: string; run?: Run; id?: string; patch?: Partial<Run> };
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (entry.op === "create" && entry.run) {
+      const parsed = Run.safeParse(entry.run);
+      if (!parsed.success) continue;
+      if (!byId.has(parsed.data.id)) order.push(parsed.data.id);
+      byId.set(parsed.data.id, parsed.data);
+    } else if (entry.op === "update" && entry.id && entry.patch) {
+      const cur = byId.get(entry.id);
+      if (!cur) continue;
+      byId.set(entry.id, { ...cur, ...entry.patch });
+    }
+  }
+  return order.map((id) => byId.get(id)!).filter(Boolean);
+}
+
+export async function listRuns(
+  agentId: string,
+  limit = 50,
+): Promise<Run[]> {
+  const all = await readRunsForAgent(agentId);
+  return all.slice(-limit).reverse();
+}
+
+export async function getLastRun(agentId: string): Promise<Run | null> {
+  const all = await readRunsForAgent(agentId);
+  return all.length ? all[all.length - 1] : null;
+}
+
+export async function getCurrentRun(agentId: string): Promise<Run | null> {
+  const all = await readRunsForAgent(agentId);
+  for (let i = all.length - 1; i >= 0; i--) {
+    if (all[i].status === "running") return all[i];
+  }
+  return null;
+}
+
+export async function getRun(
+  agentId: string,
+  runId: string,
+): Promise<Run | null> {
+  const all = await readRunsForAgent(agentId);
+  return all.find((r) => r.id === runId) ?? null;
+}
+
+/**
+ * Find any runs left in `running` status across all agents and mark them
+ * as `failed` with reason "server restarted during run".
+ */
+export async function reconcileOrphanRuns(): Promise<number> {
+  await load();
+  let count = 0;
+  for (const agentId of Object.keys(state.agents)) {
+    const runs = await readRunsForAgent(agentId);
+    for (const r of runs) {
+      if (r.status !== "running") continue;
+      await updateRun(agentId, r.id, {
+        status: "failed",
+        ended_at: Date.now(),
+        failure_reason: "server restarted during run",
+        failure_summary:
+          "This run was interrupted because the server restarted before it finished.",
+      });
+      await appendActivity(agentId, {
+        run_id: r.id,
+        kind: "run_end",
+        text: "Run interrupted because the server restarted before it finished.",
+      });
+      count++;
+    }
+  }
+  return count;
 }
 
 export function subscribeActivity(

@@ -3,13 +3,25 @@ import { Blueprint } from "@workspace/api-zod";
 import {
   createDeployment,
   deleteDeployment,
+  getCurrentRun,
   getDeployedAgent,
+  getLastRun,
   listDeployedAgents,
+  listRuns,
   readActivity,
   subscribeActivity,
   updateDeployment,
 } from "../lib/runtime/store";
 import { runAgentNow } from "../lib/runtime/scheduler";
+import type { DeployedAgent } from "@workspace/api-zod";
+
+async function enrichAgent(agent: DeployedAgent): Promise<DeployedAgent> {
+  const [current, last] = await Promise.all([
+    getCurrentRun(agent.id),
+    getLastRun(agent.id),
+  ]);
+  return { ...agent, current_run: current, last_run: last };
+}
 
 const router: IRouter = Router();
 
@@ -30,7 +42,8 @@ router.post("/agents/:id/deploy", async (req, res) => {
 
 router.get("/agents", async (_req, res) => {
   const agents = await listDeployedAgents();
-  res.json({ agents });
+  const enriched = await Promise.all(agents.map(enrichAgent));
+  res.json({ agents: enriched });
 });
 
 router.get("/agents/:id", async (req, res) => {
@@ -39,7 +52,13 @@ router.get("/agents/:id", async (req, res) => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  res.json({ agent });
+  res.json({ agent: await enrichAgent(agent) });
+});
+
+router.get("/agents/:id/runs", async (req, res) => {
+  const limit = Math.min(Number(req.query.limit ?? 25) || 25, 200);
+  const runs = await listRuns(req.params.id, limit);
+  res.json({ runs });
 });
 
 router.post("/agents/:id/pause", async (req, res) => {
@@ -73,6 +92,10 @@ router.post("/agents/:id/run", async (req, res) => {
   const task = req.body?.task ? String(req.body.task) : undefined;
   try {
     const result = await runAgentNow(req.params.id, task);
+    if (result.already_running) {
+      res.status(409).json(result);
+      return;
+    }
     res.json(result);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";

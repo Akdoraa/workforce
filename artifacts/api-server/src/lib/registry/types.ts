@@ -36,6 +36,13 @@ export interface IntegrationDefinition {
 export interface PrimitiveContext {
   connector_name: string;
   log: (msg: string, details?: Record<string, unknown>) => void;
+  /**
+   * Aborts when the run is being terminated (per-tool timeout, run
+   * wall-clock timeout, or upstream failure). Long-running handlers
+   * (e.g. fetch, polling) should pass this through so work is actually
+   * cancelled rather than only un-awaited.
+   */
+  signal?: AbortSignal;
 }
 
 export interface PrimitiveResult {

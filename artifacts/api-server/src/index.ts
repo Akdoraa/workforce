@@ -23,5 +23,7 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
-  startScheduler();
+  void startScheduler().catch((schedErr) => {
+    logger.error({ err: schedErr }, "Failed to start scheduler");
+  });
 });

@@ -1,0 +1,9 @@
+{"id":"0f817969-5317-4281-82ab-d8369fd734d2","ts":1776495367320,"run_id":"dde1ed54-48d3-493d-b001-666e2a70ae77","kind":"run_start","text":"Run started — List 1 HubSpot contact and log a note on them."}
+{"id":"0ce9bb6a-ade0-474f-91eb-45ca6b734f4a","ts":1776495369617,"run_id":"dde1ed54-48d3-493d-b001-666e2a70ae77","kind":"thought","text":"I'll start by fetching 1 contact from HubSpot right away!"}
+{"id":"5a498473-7df9-4e54-9609-0e78eda4a937","ts":1776495369618,"run_id":"dde1ed54-48d3-493d-b001-666e2a70ae77","kind":"tool_call","text":"Search contacts…","details":{"tool":"hubspot_search_contacts","args":{"limit":1}}}
+{"id":"41ea6146-0570-4c4b-b348-318f1cd32cf8","ts":1776495369624,"run_id":"dde1ed54-48d3-493d-b001-666e2a70ae77","kind":"run_end","text":"Run stopped — a step (Search contacts) took longer than 0 seconds and was cancelled."}
+{"id":"0ed0f774-965a-4eb1-920b-bae83ad799b7","ts":1776495369939,"run_id":"dde1ed54-48d3-493d-b001-666e2a70ae77","kind":"tool_result","text":"Searched your customer list — 1 found."}
+{"id":"12ba5277-6ce3-4a5b-800a-5c127e569b47","ts":1776495614050,"run_id":"31542221-10f0-4fb5-a747-94214b70a2e6","kind":"run_start","text":"Run started — List 1 HubSpot contact and log a note on them."}
+{"id":"4526b433-62b2-49c4-91b8-c017c37dbd85","ts":1776495616738,"run_id":"31542221-10f0-4fb5-a747-94214b70a2e6","kind":"thought","text":"I'll start by fetching 1 contact from HubSpot right away!"}
+{"id":"8743d228-e3dd-44c6-addc-1cc89138ae54","ts":1776495616739,"run_id":"31542221-10f0-4fb5-a747-94214b70a2e6","kind":"tool_call","text":"Search contacts…","details":{"tool":"hubspot_search_contacts","args":{"limit":1}}}
+{"id":"cff5bdba-b0d0-4290-8431-a214d434c077","ts":1776495616746,"run_id":"31542221-10f0-4fb5-a747-94214b70a2e6","kind":"run_end","text":"Run stopped — a step (Search contacts) took longer than 1 second and was cancelled. Any partial work from that step is being ignored."}

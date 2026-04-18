@@ -69,6 +69,10 @@ export const Blueprint = z.object({
     .object({ id: z.string(), url: z.string() })
     .nullable()
     .default(null),
+  // Per-blueprint runtime safety knobs. Defaults applied by the executor
+  // if absent. Both are wall-clock milliseconds.
+  run_timeout_ms: z.number().int().positive().optional(),
+  tool_timeout_ms: z.number().int().positive().optional(),
 });
 export type Blueprint = z.infer<typeof Blueprint>;
 
@@ -124,12 +128,41 @@ export const ActivityEvent = z.object({
 });
 export type ActivityEvent = z.infer<typeof ActivityEvent>;
 
+export const RunStatus = z.enum([
+  "running",
+  "succeeded",
+  "failed",
+  "timed_out",
+]);
+export type RunStatus = z.infer<typeof RunStatus>;
+
+export const RunTriggerSource = z.enum(["manual", "cron"]);
+export type RunTriggerSource = z.infer<typeof RunTriggerSource>;
+
+export const Run = z.object({
+  id: z.string(),
+  agent_id: z.string(),
+  trigger_source: RunTriggerSource,
+  trigger_id: z.string().nullable().default(null),
+  trigger_description: z.string().nullable().default(null),
+  task: z.string().default(""),
+  started_at: z.number(),
+  ended_at: z.number().nullable().default(null),
+  status: RunStatus,
+  failure_reason: z.string().nullable().default(null),
+  failure_summary: z.string().nullable().default(null),
+  tool_call_count: z.number().default(0),
+});
+export type Run = z.infer<typeof Run>;
+
 export const DeployedAgent = z.object({
   id: z.string(),
   blueprint: Blueprint,
   created_at: z.number(),
   paused: z.boolean().default(false),
   last_run_at: z.number().nullable().default(null),
+  current_run: Run.nullable().optional(),
+  last_run: Run.nullable().optional(),
 });
 export type DeployedAgent = z.infer<typeof DeployedAgent>;
 

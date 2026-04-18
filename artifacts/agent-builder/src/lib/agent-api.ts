@@ -59,7 +59,14 @@ export async function resumeAgent(id: string): Promise<DeployedAgent> {
 export async function runAgentNow(
   id: string,
   task?: string,
-): Promise<{ run_id: string; ok: boolean; summary: string; error?: string }> {
+): Promise<{
+  run_id: string;
+  ok: boolean;
+  summary: string;
+  status?: "running" | "succeeded" | "failed" | "timed_out";
+  already_running?: boolean;
+  error?: string;
+}> {
   const res = await fetch(`${API_BASE}/agents/${id}/run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
