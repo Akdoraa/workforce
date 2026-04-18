@@ -78,7 +78,7 @@ export function BlueprintPreview({
         <div className="text-xs uppercase tracking-wider text-muted-foreground">
           Your assistant
         </div>
-        <div className="text-2xl font-semibold mt-1">{blueprint.name}</div>
+        <div className="text-2xl font-semibold mt-1 font-display">{blueprint.name}</div>
         {blueprint.role_summary ? (
           <div className="text-sm text-muted-foreground mt-1">
             {blueprint.role_summary}

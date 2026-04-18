@@ -164,7 +164,7 @@ export function DeployedAgentDashboard({ deploymentId, onDisconnect }: Props) {
         <div className="p-6 max-w-4xl mx-auto space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight">
+              <h1 className="text-2xl font-semibold tracking-tight font-display">
                 {bp.name}
               </h1>
               <div className="text-sm text-muted-foreground mt-0.5">
