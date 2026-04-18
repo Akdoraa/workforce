@@ -66,62 +66,62 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-:root, .dark {
-  --background: 220 10% 14%;
-  --foreground: 210 20% 98%;
-  --border: 220 10% 25%;
-  
-  --card: 220 10% 16%;
-  --card-foreground: 210 20% 98%;
-  --card-border: 220 10% 25%;
-  
-  --popover: 220 10% 16%;
-  --popover-foreground: 210 20% 98%;
-  --popover-border: 220 10% 25%;
-  
-  --primary: 233 100% 57%;
-  --primary-foreground: 0 0% 100%;
-  
-  --secondary: 248 98% 61%;
-  --secondary-foreground: 0 0% 100%;
-  
-  --muted: 220 10% 22%;
-  --muted-foreground: 220 10% 70%;
-  
-  --accent: 233 100% 57%;
-  --accent-foreground: 0 0% 100%;
-  
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 20% 98%;
-  
-  --input: 220 10% 25%;
-  --ring: 233 100% 57%;
-  
-  --sidebar: 220 10% 11%;
-  --sidebar-foreground: 210 20% 98%;
-  --sidebar-border: 220 10% 20%;
-  --sidebar-primary: 233 100% 57%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 220 10% 20%;
-  --sidebar-accent-foreground: 210 20% 98%;
-  --sidebar-ring: 233 100% 57%;
+:root {
+  --background: 0 0% 100%;
+  --foreground: 220 15% 14%;
+  --border: 220 13% 90%;
 
-  --chart-1: 233 100% 57%;
-  --chart-2: 248 98% 61%;
-  --chart-3: 190 90% 50%;
-  --chart-4: 280 80% 60%;
-  --chart-5: 320 80% 55%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 15% 14%;
+  --card-border: 220 13% 90%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 15% 14%;
+  --popover-border: 220 13% 90%;
+
+  --primary: 22 95% 48%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 18 90% 55%;
+  --secondary-foreground: 0 0% 100%;
+
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 42%;
+
+  --accent: 22 95% 48%;
+  --accent-foreground: 0 0% 100%;
+
+  --destructive: 0 72% 50%;
+  --destructive-foreground: 0 0% 100%;
+
+  --input: 220 13% 90%;
+  --ring: 22 95% 48%;
+
+  --sidebar: 220 14% 97%;
+  --sidebar-foreground: 220 15% 14%;
+  --sidebar-border: 220 13% 90%;
+  --sidebar-primary: 22 95% 48%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 220 14% 93%;
+  --sidebar-accent-foreground: 220 15% 14%;
+  --sidebar-ring: 22 95% 48%;
+
+  --chart-1: 22 95% 48%;
+  --chart-2: 18 90% 55%;
+  --chart-3: 190 90% 45%;
+  --chart-4: 280 75% 55%;
+  --chart-5: 145 70% 42%;
 
   --app-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: "Söhne Mono", Monaco, Consolas, "Courier New", monospace;
   --radius: 0.5rem;
 
-  --button-outline: rgba(255,255,255, .10);
-  --badge-outline: rgba(255,255,255, .05);
+  --button-outline: rgba(0,0,0, .08);
+  --badge-outline: rgba(0,0,0, .04);
   --opaque-button-border-intensity: 9;
-  --elevate-1: rgba(255,255,255, .04);
-  --elevate-2: rgba(255,255,255, .09);
+  --elevate-1: rgba(0,0,0, .04);
+  --elevate-2: rgba(0,0,0, .08);
 }
 
 @layer base {
@@ -143,9 +143,9 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.15);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.25);
 }

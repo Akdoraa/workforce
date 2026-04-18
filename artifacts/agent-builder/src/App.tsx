@@ -1,9 +1,12 @@
+import { useState } from "react";
 import { useAgentStore } from "@/lib/store";
 import { runBuilderTurn, deployFromBlueprint } from "@/lib/agent-logic";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatArea } from "@/components/ChatArea";
 import { BlueprintPreview } from "@/components/BlueprintPreview";
 import { DeployedAgentDashboard } from "@/components/DeployedAgent";
+import { Button } from "@/components/ui/button";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -14,6 +17,7 @@ function App() {
   const store = useAgentStore();
   const agent = store.currentAgent;
   const hasStarted = !!agent && agent.phase !== "welcome";
+  const [dashboardHidden, setDashboardHidden] = useState(false);
 
   const handleSend = (text: string) => {
     if (!agent) return;
@@ -41,14 +45,36 @@ function App() {
     store.updateAgent(agent.id, { phase: "welcome" });
   };
 
+  const showDashboard = hasStarted && !dashboardHidden;
+
   return (
-    <div className="h-screen w-full bg-background overflow-hidden text-foreground dark">
+    <div className="h-screen w-full bg-background overflow-hidden text-foreground relative">
+      {hasStarted ? (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setDashboardHidden((v) => !v)}
+          className="absolute top-3 right-3 z-50 h-8 gap-1.5 shadow-sm bg-background"
+          title={dashboardHidden ? "Show dashboard" : "Hide dashboard"}
+        >
+          {dashboardHidden ? (
+            <>
+              <PanelRightOpen className="h-3.5 w-3.5" /> Show dashboard
+            </>
+          ) : (
+            <>
+              <PanelRightClose className="h-3.5 w-3.5" /> Hide dashboard
+            </>
+          )}
+        </Button>
+      ) : null}
+
       <ResizablePanelGroup direction="horizontal" className="h-full w-full">
         <ResizablePanel defaultSize={16} minSize={12} maxSize={24}>
           <Sidebar onNewAgent={store.createNewAgent} />
         </ResizablePanel>
         <ResizableHandle />
-        {hasStarted && agent ? (
+        {showDashboard && agent ? (
           <>
             <ResizablePanel defaultSize={36} minSize={26} maxSize={55}>
               <ChatArea
@@ -78,7 +104,7 @@ function App() {
             <ChatArea
               agent={agent}
               onSendMessage={handleSend}
-              variant="welcome"
+              variant={hasStarted ? "compact" : "welcome"}
             />
           </ResizablePanel>
         )}
