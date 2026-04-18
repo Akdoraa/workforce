@@ -1,6 +1,6 @@
 import { type Blueprint } from "@workspace/api-zod";
 import { Button } from "@/components/ui/button";
-import { Calendar, Eye, Heart, Loader2, Sparkles, Wrench } from "lucide-react";
+import { Calendar, Eye, Loader2, Sparkles, Wrench } from "lucide-react";
 import { ConnectCard } from "./ConnectCard";
 import { useEffect, useState } from "react";
 import { fetchConnections, type ConnectionStatus } from "@/lib/agent-api";
@@ -80,7 +80,6 @@ export function BlueprintPreview({
     blueprint.tools.length === 0 &&
     blueprint.triggers.length === 0 &&
     blueprint.integrations.length === 0 &&
-    !blueprint.soul &&
     !blueprint.role_summary;
 
   return (
@@ -183,14 +182,6 @@ export function BlueprintPreview({
                   integrationLabel={i.label}
                 />
               ))}
-            </div>
-          </Section>
-        ) : null}
-
-        {blueprint.soul ? (
-          <Section icon={<Heart className="h-4 w-4" />} title="How I'll sound">
-            <div className="text-sm text-muted-foreground italic whitespace-pre-wrap">
-              {blueprint.soul}
             </div>
           </Section>
         ) : null}
