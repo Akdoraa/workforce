@@ -25,7 +25,7 @@ export function Sidebar({ onNewAgent }: SidebarProps) {
       <div className="p-3 border-t border-sidebar-border">
         <div className="flex items-center gap-2 px-2 py-2 hover:bg-sidebar-accent rounded-md cursor-pointer transition-colors duration-200">
           <Avatar className="h-8 w-8 rounded-sm">
-            <AvatarFallback className="rounded-sm bg-primary/20 text-primary text-xs">
+            <AvatarFallback className="rounded-sm bg-muted text-foreground/70 text-xs">
               U
             </AvatarFallback>
           </Avatar>

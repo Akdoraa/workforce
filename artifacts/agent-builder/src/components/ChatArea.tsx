@@ -61,8 +61,8 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
     return (
       <div className="flex-1 flex flex-col h-full items-center justify-center px-6">
         <div className="w-full max-w-2xl flex flex-col items-center text-center space-y-6">
-          <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20">
-            <Sparkles className="h-8 w-8 text-white" />
+          <div className="h-14 w-14 rounded-2xl bg-card border border-border flex items-center justify-center">
+            <Sparkles className="h-7 w-7 text-primary" />
           </div>
           <div className="space-y-2">
             <h1 className="text-3xl font-semibold tracking-tight">
@@ -97,8 +97,8 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
   return (
     <div className="flex-1 flex flex-col h-full relative min-w-0">
       <div className="px-4 py-3 border-b border-border flex items-center gap-2 shrink-0">
-        <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-          <Sparkles className="h-4 w-4 text-white" />
+        <div className="h-7 w-7 rounded-lg bg-card border border-border flex items-center justify-center">
+          <Sparkles className="h-3.5 w-3.5 text-primary" />
         </div>
         <div className="text-sm font-medium truncate">
           {agent?.name ?? "Agent"}
@@ -116,16 +116,12 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
               msg.role === "user" ? "flex-row-reverse" : "flex-row"
             } animate-in fade-in slide-in-from-bottom-2 duration-300`}
           >
-            <Avatar
-              className={`h-7 w-7 shrink-0 ${
-                msg.role === "assistant" ? "bg-primary/20" : "bg-secondary/20"
-              }`}
-            >
+            <Avatar className="h-7 w-7 shrink-0 bg-muted">
               <AvatarFallback className="bg-transparent">
                 {msg.role === "assistant" ? (
-                  <Bot className="h-4 w-4 text-primary" />
+                  <Bot className="h-4 w-4 text-foreground/70" />
                 ) : (
-                  <User className="h-4 w-4 text-secondary" />
+                  <User className="h-4 w-4 text-foreground/70" />
                 )}
               </AvatarFallback>
             </Avatar>
@@ -138,8 +134,8 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
               <div
                 className={`px-3.5 py-2.5 rounded-2xl ${
                   msg.role === "user"
-                    ? "bg-primary text-primary-foreground rounded-tr-sm"
-                    : "bg-muted text-foreground rounded-tl-sm"
+                    ? "bg-secondary text-secondary-foreground rounded-tr-sm"
+                    : "bg-card border border-border text-foreground rounded-tl-sm"
                 }`}
               >
                 <p className="text-sm leading-relaxed whitespace-pre-wrap">
@@ -152,22 +148,22 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
 
         {isBuilding && (
           <div className="flex gap-3 flex-row animate-in fade-in slide-in-from-bottom-2">
-            <Avatar className="h-7 w-7 shrink-0 bg-primary/20">
+            <Avatar className="h-7 w-7 shrink-0 bg-muted">
               <AvatarFallback className="bg-transparent">
-                <Bot className="h-4 w-4 text-primary" />
+                <Bot className="h-4 w-4 text-foreground/70" />
               </AvatarFallback>
             </Avatar>
-            <div className="px-3.5 py-2.5 rounded-2xl bg-muted text-foreground rounded-tl-sm flex items-center gap-1.5">
+            <div className="px-3.5 py-2.5 rounded-2xl bg-card border border-border text-foreground rounded-tl-sm flex items-center gap-1.5">
               <div
-                className="h-2 w-2 rounded-full bg-primary animate-bounce"
+                className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce"
                 style={{ animationDelay: "0ms" }}
               />
               <div
-                className="h-2 w-2 rounded-full bg-primary animate-bounce"
+                className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce"
                 style={{ animationDelay: "150ms" }}
               />
               <div
-                className="h-2 w-2 rounded-full bg-primary animate-bounce"
+                className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce"
                 style={{ animationDelay: "300ms" }}
               />
             </div>
