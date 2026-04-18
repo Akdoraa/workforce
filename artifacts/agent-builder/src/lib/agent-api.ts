@@ -12,6 +12,7 @@ export interface ConnectionStatus {
   name: string;
   label: string;
   brand_color: string;
+  connector_name: string;
   connected: boolean;
   identity: string | null;
   display_name: string | null;

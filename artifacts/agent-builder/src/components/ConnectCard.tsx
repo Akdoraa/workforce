@@ -21,11 +21,18 @@ const BRAND_PROMPTS: Record<string, string> = {
   notion: "Connect your workspace (Notion)",
 };
 
-// All Replit connectors are managed from the same account-level page. This is
-// the same destination the workspace uses to walk a user through OAuth — we
-// open it in a popup so the user can grant (or re-grant) access in one click
-// without leaving the assistant.
-const CONNECTOR_AUTH_URL = "https://replit.com/account#connections";
+// All Replit connectors are managed from the account-level integrations page.
+// The legacy `replit.com/account#connections` URL falls back to the profile
+// tab and never shows the connectors list, so we send users to the
+// integrations page instead. When the connector slug is known we deep-link
+// straight to that connector so the user can authorize in one click.
+const CONNECTOR_AUTH_BASE = "https://replit.com/integrations";
+
+function authUrlFor(connectorName?: string | null): string {
+  return connectorName
+    ? `${CONNECTOR_AUTH_BASE}/${encodeURIComponent(connectorName)}`
+    : CONNECTOR_AUTH_BASE;
+}
 
 interface Hint {
   message: string;
@@ -77,9 +84,10 @@ export function ConnectCard({
    */
   const openAuthPopup = (): Window | null => {
     const features = "popup=yes,width=560,height=720,noopener=no";
+    const url = authUrlFor(status?.connector_name);
     let win: Window | null = null;
     try {
-      win = window.open(CONNECTOR_AUTH_URL, "replit-connector-auth", features);
+      win = window.open(url, "replit-connector-auth", features);
     } catch {
       win = null;
     }
@@ -113,7 +121,7 @@ export function ConnectCard({
     } else {
       setHint({
         message: `Your browser blocked the popup. Open the Replit connections page and authorize ${integrationName}, then come back.`,
-        fallbackUrl: CONNECTOR_AUTH_URL,
+        fallbackUrl: authUrlFor(status?.connector_name),
       });
     }
   };
@@ -127,7 +135,7 @@ export function ConnectCard({
     } else {
       setHint({
         message: `Your browser blocked the popup. Open the Replit connections page and re-authorize ${integrationName} with the extra permissions, then come back.`,
-        fallbackUrl: CONNECTOR_AUTH_URL,
+        fallbackUrl: authUrlFor(status?.connector_name),
       });
     }
   };

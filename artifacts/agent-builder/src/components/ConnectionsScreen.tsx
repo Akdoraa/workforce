@@ -24,7 +24,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-const CONNECTOR_AUTH_URL = "https://replit.com/account#connections";
+// Replit's account-level integrations page. The legacy
+// `replit.com/account#connections` URL falls back to the profile tab and never
+// shows the connectors list, so we send users to the integrations page
+// instead. When we know the connector slug we deep-link straight to that
+// connector so the user can authorize in one click.
+const CONNECTOR_AUTH_BASE = "https://replit.com/integrations";
+
+function authUrlFor(connectorName?: string | null): string {
+  return connectorName
+    ? `${CONNECTOR_AUTH_BASE}/${encodeURIComponent(connectorName)}`
+    : CONNECTOR_AUTH_BASE;
+}
 
 interface Props {
   /**
@@ -95,11 +106,16 @@ export function ConnectionsScreen({ highlightId, onHighlightConsumed }: Props) {
     );
   };
 
-  const openAuthPopup = (integrationId: string, message: string) => {
+  const openAuthPopup = (
+    integrationId: string,
+    message: string,
+    connectorName?: string | null,
+  ) => {
     const features = "popup=yes,width=560,height=720,noopener=no";
+    const url = authUrlFor(connectorName);
     let win: Window | null = null;
     try {
-      win = window.open(CONNECTOR_AUTH_URL, "replit-connector-auth", features);
+      win = window.open(url, "replit-connector-auth", features);
     } catch {
       win = null;
     }
@@ -133,6 +149,7 @@ export function ConnectionsScreen({ highlightId, onHighlightConsumed }: Props) {
     openAuthPopup(
       c.id,
       `Approve the ${c.name} sign-in in the popup. We'll update this row as soon as it's ready.`,
+      c.connector_name,
     );
   };
 
@@ -140,6 +157,7 @@ export function ConnectionsScreen({ highlightId, onHighlightConsumed }: Props) {
     openAuthPopup(
       c.id,
       `Approve the extra ${c.name} permissions in the popup. We'll update this row as soon as the new access is granted.`,
+      c.connector_name,
     );
   };
 
@@ -153,6 +171,7 @@ export function ConnectionsScreen({ highlightId, onHighlightConsumed }: Props) {
     openAuthPopup(
       c.id,
       `Remove ${c.name} from your Replit connections in the popup. We'll mark it disconnected as soon as you're done.`,
+      c.connector_name,
     );
   };
 
@@ -281,7 +300,7 @@ export function ConnectionsScreen({ highlightId, onHighlightConsumed }: Props) {
                         connections page and finish there, then come back.
                       </span>
                       <a
-                        href={CONNECTOR_AUTH_URL}
+                        href={authUrlFor(c.connector_name)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-foreground/80 hover:text-foreground underline underline-offset-2"
