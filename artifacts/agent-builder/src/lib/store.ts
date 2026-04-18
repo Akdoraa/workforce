@@ -24,6 +24,7 @@ export interface Agent {
   messages: Message[];
   tools: ToolConnection;
   createdAt: number;
+  prompt?: string;
 }
 
 const STORAGE_KEY = "agent-builder-state";

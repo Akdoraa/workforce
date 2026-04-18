@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { ToolsModal } from "./ToolsModal";
+import { extractEntities, pastTense } from "@/lib/prompt-extract";
 import {
   CreditCard,
   Users,
@@ -17,6 +18,9 @@ import {
   Zap,
   Play,
   Pause,
+  Sparkles,
+  Inbox,
+  Bell,
 } from "lucide-react";
 
 interface RightPanelProps {
@@ -49,7 +53,12 @@ export function RightPanel({ agent, tools, onUpdateTools }: RightPanelProps) {
       case "sales":
         return <SalesDashboard isRunning={isRunning} />;
       default:
-        return <GenericDashboard isRunning={isRunning} />;
+        return (
+          <CustomDashboard
+            isRunning={isRunning}
+            prompt={agent.prompt ?? ""}
+          />
+        );
     }
   };
 
@@ -350,56 +359,129 @@ function SalesDashboard({ isRunning }: { isRunning: boolean }) {
   );
 }
 
-function GenericDashboard({ isRunning }: { isRunning: boolean }) {
+function CustomDashboard({
+  isRunning,
+  prompt,
+}: {
+  isRunning: boolean;
+  prompt: string;
+}) {
+  const entities = extractEntities(prompt || "items");
+  const domainTitle =
+    entities.domainPlural.charAt(0).toUpperCase() +
+    entities.domainPlural.slice(1);
+  const verb = entities.verbs[0]
+    ? entities.verbs[0].charAt(0).toUpperCase() + entities.verbs[0].slice(1)
+    : "Process";
+
+  const counts = [
+    { label: entities.metricLabels[0], value: isRunning ? "1,284" : "1,210", trend: "+74" },
+    { label: entities.metricLabels[1], value: isRunning ? "42" : "0", trend: isRunning ? "live" : "idle" },
+    { label: entities.metricLabels[2], value: "7", trend: "" },
+  ];
+
+  const verbPast = pastTense(verb);
+  const feed = isRunning
+    ? entities.itemNames.slice(0, 4).map((name, i) => ({
+        title: `${verbPast} ${name}`,
+        desc: `Agent ${pastTense(entities.verbs[0] ?? "process")} this ${entities.domain} automatically`,
+        time: `${(i + 1) * 2}s ago`,
+      }))
+    : [];
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between mb-2">
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
         <h3 className="font-medium flex items-center gap-2">
-          <CheckSquare className="h-4 w-4" /> Agent tasks
+          <Sparkles className="h-4 w-4 text-primary" /> {domainTitle} workspace
         </h3>
         <RunningDot active={isRunning} />
       </div>
 
-      <div className="grid gap-3">
-        {[
-          {
-            title: "Analyze incoming data",
-            desc: "Monitor connected sources",
-            active: true,
-          },
-          {
-            title: "Generate reports",
-            desc: "Weekly automated summaries",
-            active: isRunning,
-          },
-          {
-            title: "Send notifications",
-            desc: "Alert on critical events",
-            active: isRunning,
-          },
-        ].map((task, i) => (
-          <Card key={i} className="p-4 bg-background border-border">
-            <div className="flex items-start gap-3">
-              <div
-                className={`mt-0.5 h-4 w-4 rounded border flex items-center justify-center ${
-                  task.active
-                    ? "bg-primary border-primary"
-                    : "border-muted-foreground"
-                }`}
-              >
-                {task.active && (
-                  <CheckSquare className="h-3 w-3 text-primary-foreground" />
-                )}
-              </div>
-              <div>
-                <div className="font-medium text-sm">{task.title}</div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {task.desc}
-                </div>
-              </div>
+      <div className="grid grid-cols-3 gap-3">
+        {counts.map((c, i) => (
+          <Card key={i} className="p-3 bg-background border-border">
+            <div className="text-[11px] text-muted-foreground mb-1 truncate">
+              {c.label}
             </div>
+            <div className="text-xl font-bold">{c.value}</div>
+            {c.trend && (
+              <div className="text-[11px] text-emerald-500 mt-0.5">
+                {c.trend}
+              </div>
+            )}
           </Card>
         ))}
+      </div>
+
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <Inbox className="h-4 w-4 text-muted-foreground" />
+          <h4 className="text-sm font-medium">{domainTitle} queue</h4>
+        </div>
+        <div className="grid gap-2">
+          {entities.itemNames.map((item, i) => (
+            <Card
+              key={i}
+              className="p-3 bg-background border-border flex items-center justify-between"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium truncate">{item}</div>
+                <div className="text-xs text-muted-foreground truncate">
+                  {isRunning
+                    ? `${verbPast} by agent`
+                    : `Awaiting ${entities.verbs[0] ?? "review"}`}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant={isRunning ? "secondary" : "outline"}
+                className="h-7 text-xs ml-3 shrink-0"
+                disabled={isRunning}
+              >
+                {isRunning ? "Done" : verb}
+              </Button>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <Bell className="h-4 w-4 text-muted-foreground" />
+          <h4 className="text-sm font-medium">Live activity</h4>
+        </div>
+        {feed.length === 0 ? (
+          <Card className="p-4 bg-background border-border border-dashed text-center">
+            <div className="text-xs text-muted-foreground">
+              Press <span className="text-foreground font-medium">Run agent</span> to start processing.
+            </div>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {feed.map((event, i) => (
+              <Card
+                key={i}
+                className="p-3 bg-background border-border flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300"
+              >
+                <div className="h-7 w-7 rounded bg-primary/10 flex items-center justify-center shrink-0">
+                  <Activity className="h-3.5 w-3.5 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">
+                    {event.title}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {event.desc}
+                  </div>
+                </div>
+                <div className="text-[11px] text-muted-foreground shrink-0">
+                  {event.time}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

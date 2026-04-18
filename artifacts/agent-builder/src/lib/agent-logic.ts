@@ -62,7 +62,11 @@ export async function simulateAIResponse(
 
   if (requestTokens.get(agentId) !== token) return;
 
-  updateAgent(agentId, { archetype: newArchetype, name: newName });
+  updateAgent(agentId, {
+    archetype: newArchetype,
+    name: newName,
+    prompt: originAgent.prompt ?? userText,
+  });
 
   const isShort = userText.length < 15;
   const status = isShort ? "Needs Input" : "Active";
