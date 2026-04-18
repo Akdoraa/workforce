@@ -293,7 +293,7 @@ export async function connectorFetch(
  * read path that needs raw credentials (e.g. building a Stripe SDK
  * client) so secrets aren't pulled into memory more than necessary.
  */
-async function fetchConnectionSettingsWithSecrets(
+export async function fetchConnectionSettingsWithSecrets(
   connectorName: string,
 ): Promise<Record<string, unknown> | null> {
   const hostname = process.env["REPLIT_CONNECTORS_HOSTNAME"];
