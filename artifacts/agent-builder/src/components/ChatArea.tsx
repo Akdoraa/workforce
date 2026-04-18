@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Agent } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { ArrowUp, Bot, User, Check, Loader2 } from "lucide-react";
-import logoUrl from "@assets/2_1776495443204.png";
+import logoUrl from "@assets/workforce_logo_(1)_1776495693230.png";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 interface ChatAreaProps {
