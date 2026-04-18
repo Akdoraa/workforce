@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Agent } from "@/lib/store";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, Bot, User, Check, Loader2 } from "lucide-react";
+import { ArrowUp, User, Check, Loader2 } from "lucide-react";
 import logoUrl from "@assets/workforce_logo_(1)_1776495693230.png";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
@@ -131,7 +131,7 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
               <Avatar className="h-7 w-7 shrink-0 bg-muted">
                 <AvatarFallback className="bg-transparent">
                   {msg.role === "assistant" ? (
-                    <Bot className="h-4 w-4 text-foreground/70" />
+                    <img src={logoUrl} alt="" className="h-4 w-4 object-contain" />
                   ) : (
                     <User className="h-4 w-4 text-foreground/70" />
                   )}
@@ -217,7 +217,7 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
               <div className="flex gap-3 flex-row animate-in fade-in slide-in-from-bottom-2">
                 <Avatar className="h-7 w-7 shrink-0 bg-muted">
                   <AvatarFallback className="bg-transparent">
-                    <Bot className="h-4 w-4 text-foreground/70" />
+                    <img src={logoUrl} alt="" className="h-4 w-4 object-contain" />
                   </AvatarFallback>
                 </Avatar>
                 <div className="px-3.5 py-2.5 rounded-2xl bg-card border border-border text-foreground rounded-tl-sm flex items-center gap-2">
