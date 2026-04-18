@@ -30,6 +30,23 @@ export interface IntegrationDefinition {
   scope_probe?: {
     path: string;
     method?: string;
+    /**
+     * Optional JSON body for write-method probes. Use a syntactically
+     * valid but no-op body (e.g. `{"requests":[]}` for batchUpdate)
+     * so the API checks scope and resource existence but performs no
+     * mutation. With a write-capable scope and a sentinel id, the
+     * endpoint returns 404 (treated as scope-ok). Without the right
+     * scope it returns 403 with ACCESS_TOKEN_SCOPE_INSUFFICIENT.
+     */
+    body?: unknown;
+    /**
+     * If true, a 404 response from the probe is treated as scope-ok.
+     * Use this for sentinel-id probes where reaching a 404 means the
+     * auth/scope checks already passed (e.g. POSTing to
+     * `/v4/spreadsheets/0:batchUpdate`). Off by default so a typo'd
+     * probe path can't silently mask a real auth failure.
+     */
+    treat_404_as_ok?: boolean;
   };
 }
 

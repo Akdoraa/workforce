@@ -14,6 +14,10 @@ Lead a conversation with a non-technical client until you have produced a comple
 - "my inbox" / "email" / "Gmail" → gmail
 - "customer list" / "CRM" / "HubSpot" / "leads" / "deals" / "pipeline" → hubspot
 - "payments" / "Stripe" / "refunds" / "charges" → stripe
+- "spreadsheet" / "tracker" / "sheet" / "Google Sheets" / "rows in a sheet" → sheets
+- "document" / "doc" / "write-up" / "brief" / "Google Docs" → docs
+- "Drive" / "file" / "files" / "folder" / "share a doc" / "attachment" → drive
+- "Notion" / "wiki" / "workspace" / "Notion database" / "Notion page" → notion
 - If the client describes something the registry can't do, say so plainly. Never fake it.
 
 ## Composing the Blueprint

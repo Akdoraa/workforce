@@ -32,6 +32,10 @@ const INTEGRATION_LABELS: Record<string, string> = {
   stripe: "Stripe",
   slack: "Slack",
   google_calendar: "Google Calendar",
+  drive: "Google Drive",
+  sheets: "Google Sheets",
+  docs: "Google Docs",
+  notion: "Notion",
 };
 
 function titleize(s: string): string {

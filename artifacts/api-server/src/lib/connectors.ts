@@ -68,17 +68,34 @@ const probeCache = new Map<string, { result: ProbeResult; expires: number }>();
 
 async function runScopeProbe(
   connectorName: string,
-  probe: { path: string; method?: string },
+  probe: {
+    path: string;
+    method?: string;
+    body?: unknown;
+    treat_404_as_ok?: boolean;
+  },
 ): Promise<ProbeResult> {
   const key = `${connectorName}::${probe.method ?? "GET"} ${probe.path}`;
   const cached = probeCache.get(key);
   if (cached && cached.expires > Date.now()) return cached.result;
   let result: ProbeResult;
   try {
-    const res = await sdk.proxy(connectorName, probe.path, {
+    const proxyInit: { method: string; body?: string; headers?: Record<string, string> } = {
       method: probe.method ?? "GET",
-    });
+    };
+    if (probe.body !== undefined) {
+      proxyInit.body = JSON.stringify(probe.body);
+      proxyInit.headers = { "Content-Type": "application/json" };
+    }
+    const res = await sdk.proxy(connectorName, probe.path, proxyInit);
     if (res.ok) {
+      result = { ok: true, status: res.status, scope_insufficient: false };
+    } else if (res.status === 404 && probe.treat_404_as_ok) {
+      // Sentinel-id probes (e.g. `POST /v4/spreadsheets/0:batchUpdate`)
+      // intentionally hit a non-existent resource so the API performs
+      // its auth/scope check and then 404s. Only treat 404 as scope-ok
+      // when the probe explicitly opts in — otherwise a typo'd probe
+      // path could silently mask a real auth failure.
       result = { ok: true, status: res.status, scope_insufficient: false };
     } else {
       const body = (await res.text()).toLowerCase();
@@ -108,7 +125,12 @@ export async function getConnectorAccount(
   opts: {
     required_scopes?: string[];
     scope_equivalents?: Record<string, string[]>;
-    scope_probe?: { path: string; method?: string };
+    scope_probe?: {
+      path: string;
+      method?: string;
+      body?: unknown;
+      treat_404_as_ok?: boolean;
+    };
   } = {},
 ): Promise<ConnectorAccount> {
   try {

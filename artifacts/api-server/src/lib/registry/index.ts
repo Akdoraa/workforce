@@ -1,5 +1,9 @@
+import { DOCS_INTEGRATION, DOCS_PRIMITIVES } from "./docs";
+import { DRIVE_INTEGRATION, DRIVE_PRIMITIVES } from "./drive";
 import { GMAIL_INTEGRATION, GMAIL_PRIMITIVES } from "./gmail";
 import { HUBSPOT_INTEGRATION, HUBSPOT_PRIMITIVES } from "./hubspot";
+import { NOTION_INTEGRATION, NOTION_PRIMITIVES } from "./notion";
+import { SHEETS_INTEGRATION, SHEETS_PRIMITIVES } from "./sheets";
 import { STRIPE_INTEGRATION, STRIPE_PRIMITIVES } from "./stripe";
 import type {
   IntegrationDefinition,
@@ -27,12 +31,20 @@ export const INTEGRATIONS: IntegrationDefinition[] = [
   GMAIL_INTEGRATION,
   HUBSPOT_INTEGRATION,
   STRIPE_INTEGRATION,
+  DRIVE_INTEGRATION,
+  SHEETS_INTEGRATION,
+  DOCS_INTEGRATION,
+  NOTION_INTEGRATION,
 ];
 
 export const PRIMITIVES: IntegrationPrimitive[] = [
   ...GMAIL_PRIMITIVES,
   ...HUBSPOT_PRIMITIVES,
   ...STRIPE_PRIMITIVES,
+  ...DRIVE_PRIMITIVES,
+  ...SHEETS_PRIMITIVES,
+  ...DOCS_PRIMITIVES,
+  ...NOTION_PRIMITIVES,
 ];
 
 export function findIntegration(id: string): IntegrationDefinition | undefined {

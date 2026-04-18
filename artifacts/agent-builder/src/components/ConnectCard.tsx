@@ -14,6 +14,10 @@ const BRAND_PROMPTS: Record<string, string> = {
   gmail: "Connect your inbox (Gmail)",
   hubspot: "Connect your customer list (HubSpot)",
   stripe: "Connect your payments (Stripe)",
+  drive: "Connect your files (Google Drive)",
+  sheets: "Connect your spreadsheets (Google Sheets)",
+  docs: "Connect your documents (Google Docs)",
+  notion: "Connect your workspace (Notion)",
 };
 
 // All Replit connectors are managed from the same account-level page. This is
