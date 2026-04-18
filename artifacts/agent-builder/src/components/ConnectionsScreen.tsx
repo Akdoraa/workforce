@@ -79,7 +79,12 @@ export function ConnectionsScreen({ highlightId, onHighlightConsumed }: Props) {
     };
     const poll = async () => {
       const list = await fetchConnections({ fresh: true });
-      if (mounted) setConnections(list);
+      if (!mounted) return;
+      setConnections(list);
+      // Once we have a live server answer, any "Approve in popup" overlay is
+      // stale — Replit's connector list is now the truth. Only keep the
+      // popup-blocked message (which has its own link for the user to act on).
+      setPending(null);
     };
     void initial();
     const id = setInterval(poll, 5000);

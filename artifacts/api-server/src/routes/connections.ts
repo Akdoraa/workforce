@@ -6,21 +6,15 @@ import { resetStripeClient } from "../lib/registry/stripe";
 
 const router: IRouter = Router();
 
-function reauthorizationMessage(integ: {
-  name: string;
-  label: string;
-}): string {
-  return `Reconnect to grant ${integ.name} access to ${integ.label}.`;
-}
-
 async function buildStatus(
   integ: IntegrationDefinition,
   opts: { force?: boolean; maxAgeMs?: number } = {},
 ) {
+  // For the Connections page we trust Replit's connector listing as the
+  // sole source of truth: presence = connected, absence = not connected.
+  // Scope probing is deliberately omitted here — it can drift from what
+  // Replit shows and is not needed for the MVP display.
   const acct = await getConnectorAccount(integ.connector_name, {
-    required_scopes: integ.required_scopes,
-    scope_equivalents: integ.scope_equivalents,
-    scope_probe: integ.scope_probe,
     force: opts.force,
     maxAgeMs: opts.maxAgeMs,
   });
@@ -33,11 +27,9 @@ async function buildStatus(
     connected: acct.connected,
     identity: acct.identity,
     display_name: acct.display_name,
-    needs_reauthorization: acct.needs_reauthorization,
-    missing_scopes: acct.missing_scopes,
-    reauthorization_message: acct.needs_reauthorization
-      ? reauthorizationMessage(integ)
-      : undefined,
+    needs_reauthorization: false,
+    missing_scopes: [],
+    reauthorization_message: undefined,
     error: acct.error,
   };
 }

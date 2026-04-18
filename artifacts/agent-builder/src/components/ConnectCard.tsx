@@ -49,14 +49,21 @@ export function ConnectCard({
   const [hint, setHint] = useState<Hint | null>(null);
   const popupWatcher = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const refresh = async () => {
+  const refresh = async (opts: { fresh?: boolean } = {}) => {
     try {
-      const all = await fetchConnections();
+      const all = await fetchConnections(opts);
       const found = all.find((c) => c.id === integrationId) ?? null;
       setStatus(found);
-      if (found?.connected && !found.needs_reauthorization) {
+      if (found?.connected) {
+        // Connected — clear any pending hint and fire the callback.
         setHint(null);
         if (onConnected) onConnected(found);
+      } else if (!found?.error) {
+        // Server gave a definitive "not connected" answer. Clear any
+        // "Approve in popup" hint (no fallbackUrl) so it doesn't linger.
+        // Keep popup-blocked messages (they have a fallbackUrl the user
+        // still needs to act on).
+        setHint((prev) => (prev?.fallbackUrl ? prev : null));
       }
     } finally {
       setLoading(false);
@@ -65,7 +72,9 @@ export function ConnectCard({
 
   useEffect(() => {
     void refresh();
-    const id = setInterval(refresh, 5000);
+    // Use fresh:true on the poll so the card and ConnectionsScreen
+    // read from the same live Replit state and can never disagree.
+    const id = setInterval(() => refresh({ fresh: true }), 5000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [integrationId]);
@@ -104,7 +113,7 @@ export function ConnectCard({
         }
         // The user finished (or cancelled). Refresh immediately so the card
         // flips to Connected without waiting for the 5s poll.
-        void refresh();
+        void refresh({ fresh: true });
       }
     }, 800);
     return win;

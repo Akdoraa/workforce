@@ -59,7 +59,11 @@ export function computeMissingScopes(
   return missing;
 }
 
-const CACHE_TTL_MS = 60_000;
+// 15s TTL keeps background tabs from hammering the connectors API while
+// still surfacing external state changes (toggled in Replit settings)
+// well within a human-noticeable delay. The foreground Connections page
+// poll uses force:true / maxAgeMs to bypass this and get live data.
+const CACHE_TTL_MS = 15_000;
 
 export async function fetchConnection(
   connectorName: string,
