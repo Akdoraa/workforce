@@ -49,22 +49,11 @@ interface AppState {
   currentAgentId: string | null;
 }
 
-const ADJECTIVES = [
-  "Swift", "Bright", "Quiet", "Clever", "Bold", "Calm", "Sharp", "Sunny",
-  "Brave", "Crisp", "Nimble", "Mellow", "Vivid", "Lively", "Steady", "Keen",
-];
-const NOUNS = [
-  "Otter", "Falcon", "Heron", "Sparrow", "Fox", "Lynx", "Robin", "Wren",
-  "Marlin", "Badger", "Hawk", "Magpie", "Stoat", "Raven", "Finch", "Crane",
-];
-const pick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)]!;
-const generateAgentName = () => `${pick(ADJECTIVES)} ${pick(NOUNS)}`;
-
 const createDefaultAgent = (): Agent => {
   const id = crypto.randomUUID();
   return {
     id,
-    name: generateAgentName(),
+    name: "New Agent",
     status: "Drafting",
     messages: [],
     blueprint: emptyBlueprint(),
