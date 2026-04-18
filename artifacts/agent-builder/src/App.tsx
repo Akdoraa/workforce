@@ -1,5 +1,9 @@
 import { useAgentStore } from "@/lib/store";
-import { simulateAIResponse } from "@/lib/agent-logic";
+import {
+  handleUserPrompt,
+  connectCredentials,
+  disconnect,
+} from "@/lib/agent-logic";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatArea } from "@/components/ChatArea";
 import { RightPanel } from "@/components/RightPanel";
@@ -14,9 +18,30 @@ function App() {
   const agent = store.currentAgent;
   const hasStarted = !!agent && agent.messages.length > 0;
 
-  const handleSend = (text: string) => {
+  const onSend = (text: string) => {
     if (!agent) return;
-    simulateAIResponse(text, agent, store.updateAgent, store.addMessageTo);
+    handleUserPrompt(text, agent, store.updateAgent, store.addMessageTo);
+  };
+
+  const onConnect = (apiKey: string, email: string) => {
+    if (!agent) return;
+    connectCredentials(
+      agent,
+      apiKey,
+      email,
+      store.updateAgent,
+      store.addMessageTo,
+    );
+  };
+
+  const onToggleRunning = () => {
+    if (!agent) return;
+    store.updateAgent(agent.id, { isRunning: !agent.isRunning });
+  };
+
+  const onDisconnect = () => {
+    if (!agent) return;
+    disconnect(agent, store.updateAgent);
   };
 
   return (
@@ -31,7 +56,7 @@ function App() {
             <ResizablePanel defaultSize={36} minSize={26} maxSize={55}>
               <ChatArea
                 agent={agent}
-                onSendMessage={handleSend}
+                onSendMessage={onSend}
                 variant="compact"
               />
             </ResizablePanel>
@@ -39,10 +64,9 @@ function App() {
             <ResizablePanel defaultSize={48} minSize={30}>
               <RightPanel
                 agent={agent}
-                tools={agent.tools}
-                onUpdateTools={(tools) =>
-                  store.updateAgent(agent.id, { tools })
-                }
+                onConnect={onConnect}
+                onToggleRunning={onToggleRunning}
+                onDisconnect={onDisconnect}
               />
             </ResizablePanel>
           </>
@@ -50,7 +74,7 @@ function App() {
           <ResizablePanel defaultSize={84}>
             <ChatArea
               agent={agent}
-              onSendMessage={handleSend}
+              onSendMessage={onSend}
               variant="welcome"
             />
           </ResizablePanel>
