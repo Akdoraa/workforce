@@ -27,6 +27,7 @@ function App() {
       updateAgent: store.updateAgent,
       addMessageTo: store.addMessageTo,
       appendToMessage: store.appendToMessage,
+      addActivityTo: store.addActivityTo,
       patchBlueprint: store.patchBlueprint,
     });
   };

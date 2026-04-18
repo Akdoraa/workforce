@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Agent } from "@/lib/store";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, Bot, User, Sparkles } from "lucide-react";
+import { ArrowUp, Bot, User, Sparkles, Check, Loader2 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 interface ChatAreaProps {
@@ -109,66 +109,121 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
         ref={scrollRef}
         className="flex-1 overflow-y-auto px-4 py-6 space-y-5"
       >
-        {agent?.messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex gap-3 ${
-              msg.role === "user" ? "flex-row-reverse" : "flex-row"
-            } animate-in fade-in slide-in-from-bottom-2 duration-300`}
-          >
-            <Avatar className="h-7 w-7 shrink-0 bg-muted">
-              <AvatarFallback className="bg-transparent">
-                {msg.role === "assistant" ? (
-                  <Bot className="h-4 w-4 text-foreground/70" />
-                ) : (
-                  <User className="h-4 w-4 text-foreground/70" />
-                )}
-              </AvatarFallback>
-            </Avatar>
-
+        {agent?.messages.map((msg, idx) => {
+          const isLastAssistant =
+            msg.role === "assistant" &&
+            idx === (agent?.messages.length ?? 0) - 1;
+          const liveAssistant = isLastAssistant && isBuilding;
+          const activities = msg.activities ?? [];
+          const hasContent = msg.content.length > 0;
+          return (
             <div
-              className={`flex flex-col ${
-                msg.role === "user" ? "items-end" : "items-start"
-              } max-w-[85%]`}
+              key={msg.id}
+              className={`flex gap-3 ${
+                msg.role === "user" ? "flex-row-reverse" : "flex-row"
+              } animate-in fade-in slide-in-from-bottom-2 duration-300`}
             >
+              <Avatar className="h-7 w-7 shrink-0 bg-muted">
+                <AvatarFallback className="bg-transparent">
+                  {msg.role === "assistant" ? (
+                    <Bot className="h-4 w-4 text-foreground/70" />
+                  ) : (
+                    <User className="h-4 w-4 text-foreground/70" />
+                  )}
+                </AvatarFallback>
+              </Avatar>
+
               <div
-                className={`px-3.5 py-2.5 rounded-2xl ${
-                  msg.role === "user"
-                    ? "bg-secondary text-secondary-foreground rounded-tr-sm"
-                    : "bg-card border border-border text-foreground rounded-tl-sm"
-                }`}
+                className={`flex flex-col gap-1.5 ${
+                  msg.role === "user" ? "items-end" : "items-start"
+                } max-w-[85%]`}
               >
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                  {msg.content}
-                </p>
+                {msg.role === "assistant" && activities.length > 0 && (
+                  <div className="flex flex-col gap-1 w-full">
+                    {activities.map((act, i) => {
+                      const isLastActivity =
+                        i === activities.length - 1 && liveAssistant;
+                      return (
+                        <div
+                          key={act.id}
+                          className="flex items-center gap-2 text-xs text-muted-foreground animate-in fade-in slide-in-from-left-2 duration-300"
+                        >
+                          <div
+                            className={`h-4 w-4 rounded-full flex items-center justify-center shrink-0 ${
+                              isLastActivity
+                                ? "bg-primary/10 text-primary"
+                                : "bg-muted text-foreground/60"
+                            }`}
+                          >
+                            {isLastActivity ? (
+                              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                            ) : (
+                              <Check className="h-2.5 w-2.5" />
+                            )}
+                          </div>
+                          <span
+                            className={
+                              isLastActivity
+                                ? "text-foreground/80"
+                                : "text-muted-foreground"
+                            }
+                          >
+                            {act.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {(hasContent || (msg.role === "assistant" && !liveAssistant)) &&
+                  hasContent && (
+                    <div
+                      className={`px-3.5 py-2.5 rounded-2xl ${
+                        msg.role === "user"
+                          ? "bg-secondary text-secondary-foreground rounded-tr-sm"
+                          : "bg-card border border-border text-foreground rounded-tl-sm"
+                      }`}
+                    >
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                        {msg.content}
+                      </p>
+                    </div>
+                  )}
+
+                {liveAssistant && !hasContent && activities.length === 0 && (
+                  <div className="px-3.5 py-2.5 rounded-2xl bg-card border border-border text-foreground rounded-tl-sm flex items-center gap-2">
+                    <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                    <span className="text-xs text-muted-foreground">
+                      Thinking…
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
-        {isBuilding && (
-          <div className="flex gap-3 flex-row animate-in fade-in slide-in-from-bottom-2">
-            <Avatar className="h-7 w-7 shrink-0 bg-muted">
-              <AvatarFallback className="bg-transparent">
-                <Bot className="h-4 w-4 text-foreground/70" />
-              </AvatarFallback>
-            </Avatar>
-            <div className="px-3.5 py-2.5 rounded-2xl bg-card border border-border text-foreground rounded-tl-sm flex items-center gap-1.5">
-              <div
-                className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce"
-                style={{ animationDelay: "0ms" }}
-              />
-              <div
-                className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce"
-                style={{ animationDelay: "150ms" }}
-              />
-              <div
-                className="h-1.5 w-1.5 rounded-full bg-muted-foreground animate-bounce"
-                style={{ animationDelay: "300ms" }}
-              />
-            </div>
-          </div>
-        )}
+        {isBuilding &&
+          (() => {
+            const last = agent?.messages[agent.messages.length - 1];
+            if (last && last.role === "assistant") return null;
+            return (
+              <div className="flex gap-3 flex-row animate-in fade-in slide-in-from-bottom-2">
+                <Avatar className="h-7 w-7 shrink-0 bg-muted">
+                  <AvatarFallback className="bg-transparent">
+                    <Bot className="h-4 w-4 text-foreground/70" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="px-3.5 py-2.5 rounded-2xl bg-card border border-border text-foreground rounded-tl-sm flex items-center gap-2">
+                  <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                  <span className="text-xs text-muted-foreground">
+                    Thinking…
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
       </div>
 
       <div className="p-3 border-t border-border shrink-0">{inputForm}</div>

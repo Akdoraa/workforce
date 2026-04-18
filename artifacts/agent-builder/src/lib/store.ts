@@ -8,11 +8,17 @@ import {
 export type Status = "Drafting" | "Ready" | "Deploying" | "Deployed";
 export type Phase = "welcome" | "building" | "deployed";
 
+export interface MessageActivity {
+  id: string;
+  label: string;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: number;
+  activities?: MessageActivity[];
 }
 
 export interface Agent {
@@ -209,6 +215,36 @@ export function useAgentStore() {
     [],
   );
 
+  const addActivityTo = useCallback(
+    (agentId: string, messageId: string, label: string) => {
+      setState((s) => {
+        const target = s.agents[agentId];
+        if (!target) return s;
+        return {
+          ...s,
+          agents: {
+            ...s.agents,
+            [agentId]: {
+              ...target,
+              messages: target.messages.map((m) =>
+                m.id === messageId
+                  ? {
+                      ...m,
+                      activities: [
+                        ...(m.activities ?? []),
+                        { id: crypto.randomUUID(), label },
+                      ],
+                    }
+                  : m,
+              ),
+            },
+          },
+        };
+      });
+    },
+    [],
+  );
+
   const appendToMessage = useCallback(
     (agentId: string, messageId: string, delta: string) => {
       setState((s) => {
@@ -242,5 +278,6 @@ export function useAgentStore() {
     patchBlueprint,
     addMessageTo,
     appendToMessage,
+    addActivityTo,
   };
 }

@@ -17,7 +17,58 @@ interface RunBuilderTurnArgs {
     content: string,
   ) => string;
   appendToMessage: (id: string, messageId: string, delta: string) => void;
+  addActivityTo: (id: string, messageId: string, label: string) => void;
   patchBlueprint: (id: string, patch: BlueprintPatch) => void;
+}
+
+const INTEGRATION_LABELS: Record<string, string> = {
+  gmail: "Gmail",
+  hubspot: "HubSpot",
+  stripe: "Stripe",
+  slack: "Slack",
+  google_calendar: "Google Calendar",
+};
+
+function titleize(s: string): string {
+  return s
+    .replace(/^[a-z]+_/, "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function friendlyToolLabel(
+  name: string,
+  args: Record<string, unknown>,
+): string {
+  switch (name) {
+    case "ask_clarifying_question":
+      return "Asking a quick question";
+    case "set_role": {
+      const n = typeof args.name === "string" ? args.name : "the agent";
+      return `Naming the agent — ${n}`;
+    }
+    case "add_integration": {
+      const id = String(args.id ?? "").toLowerCase();
+      const label = INTEGRATION_LABELS[id] ?? titleize(id);
+      return `Connecting ${label}`;
+    }
+    case "add_tool": {
+      const p = String(args.primitive ?? "");
+      return `Adding ability — ${titleize(p)}`;
+    }
+    case "add_trigger":
+      return "Setting when it runs";
+    case "add_capability":
+      return "Adding a capability";
+    case "set_voice":
+      return "Writing how it sounds";
+    case "set_rules":
+      return "Writing the operating rules";
+    case "finalize_blueprint":
+      return "Finalizing the agent";
+    default:
+      return titleize(name);
+  }
 }
 
 export async function runBuilderTurn({
@@ -26,6 +77,7 @@ export async function runBuilderTurn({
   updateAgent,
   addMessageTo,
   appendToMessage,
+  addActivityTo,
   patchBlueprint,
 }: RunBuilderTurnArgs): Promise<void> {
   addMessageTo(agent.id, "user", userText);
@@ -47,8 +99,8 @@ export async function runBuilderTurn({
     onText: (delta) => {
       appendToMessage(agent.id, assistantMsgId, delta);
     },
-    onToolCall: () => {
-      // Tool calls are reflected through blueprint patches; nothing to do here.
+    onToolCall: (name, args) => {
+      addActivityTo(agent.id, assistantMsgId, friendlyToolLabel(name, args));
     },
     onPatch: (patch) => {
       patchBlueprint(agent.id, patch);
