@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ToolConnection } from "@/lib/store";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -14,18 +14,22 @@ interface ToolsModalProps {
 }
 
 export function ToolsModal({ open, onOpenChange, tools, onUpdateTools }: ToolsModalProps) {
-  const [localTools, setLocalTools] = useState(tools);
   const [creds, setCreds] = useState({ stripe: "", jira: "", slack: "" });
 
+  useEffect(() => {
+    if (open) {
+      setCreds({ stripe: "", jira: "", slack: "" });
+    }
+  }, [open, tools]);
+
   const handleConnect = (tool: keyof ToolConnection) => {
-    if (!creds[tool].trim() && !localTools[tool]) return;
-    
-    const newTools = { ...localTools, [tool]: !localTools[tool] };
-    setLocalTools(newTools);
+    if (!creds[tool].trim() && !tools[tool]) return;
+
+    const newTools = { ...tools, [tool]: !tools[tool] };
     onUpdateTools(newTools);
-    
+
     if (newTools[tool]) {
-      setCreds({ ...creds, [tool]: "" }); // clear on connect
+      setCreds({ ...creds, [tool]: "" });
     }
   };
 
@@ -44,7 +48,7 @@ export function ToolsModal({ open, onOpenChange, tools, onUpdateTools }: ToolsMo
             name="Stripe" 
             id="stripe"
             description="Access payment and subscription data"
-            isConnected={localTools.stripe}
+            isConnected={tools.stripe}
             credValue={creds.stripe}
             onCredChange={(v) => setCreds({ ...creds, stripe: v })}
             onConnect={() => handleConnect("stripe")}
@@ -53,7 +57,7 @@ export function ToolsModal({ open, onOpenChange, tools, onUpdateTools }: ToolsMo
             name="Jira" 
             id="jira"
             description="Manage issues and project boards"
-            isConnected={localTools.jira}
+            isConnected={tools.jira}
             credValue={creds.jira}
             onCredChange={(v) => setCreds({ ...creds, jira: v })}
             onConnect={() => handleConnect("jira")}
@@ -62,7 +66,7 @@ export function ToolsModal({ open, onOpenChange, tools, onUpdateTools }: ToolsMo
             name="Slack" 
             id="slack"
             description="Send messages and monitor channels"
-            isConnected={localTools.slack}
+            isConnected={tools.slack}
             credValue={creds.slack}
             onCredChange={(v) => setCreds({ ...creds, slack: v })}
             onConnect={() => handleConnect("slack")}
