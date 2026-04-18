@@ -62,7 +62,7 @@ router.post("/builder/chat", async (req, res) => {
       const systemPrompt = `${buildSystemPrompt()}\n\nCURRENT BLUEPRINT:\n${summarizeBlueprint(blueprint)}`;
 
       const stream = anthropic.messages.stream({
-        model: "claude-sonnet-4-6",
+        model: "claude-opus-4-7",
         max_tokens: 8192,
         system: systemPrompt,
         tools: BUILDER_TOOLS,
@@ -93,8 +93,20 @@ router.post("/builder/chat", async (req, res) => {
       }
 
       const toolResults: Anthropic.ToolResultBlockParam[] = [];
+      let pauseForUser = false;
       for (const toolUse of toolUses) {
         const args = (toolUse.input as Record<string, unknown>) ?? {};
+
+        if (toolUse.name === "ask_clarifying_question") {
+          const question =
+            typeof args.question === "string" ? args.question.trim() : "";
+          if (question) {
+            send(res, { type: "text", content: question });
+          }
+          pauseForUser = true;
+          continue;
+        }
+
         send(res, {
           type: "tool_call",
           name: toolUse.name,
@@ -112,6 +124,10 @@ router.post("/builder/chat", async (req, res) => {
           tool_use_id: toolUse.id,
           content: exec.resultText,
         });
+      }
+
+      if (pauseForUser) {
+        break;
       }
 
       messages.push({ role: "user", content: toolResults });
