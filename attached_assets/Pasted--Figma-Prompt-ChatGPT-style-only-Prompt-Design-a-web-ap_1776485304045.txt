@@ -1,0 +1,98 @@
+🎯 Figma Prompt (ChatGPT-style only)
+
+Prompt:
+
+Design a web app interface for “Agent Builder” that strictly follows the UI/UX patterns of ChatGPT.
+
+The interface must feel almost identical in structure and interaction, with minimal deviations.
+
+🧩 Layout (DO NOT DEVIATE)
+1. Left Sidebar (same as ChatGPT)
+Dark vertical sidebar
+Sections:
+New Agent (instead of “New Chat”)
+History of agents (list of previous agents created)
+Bottom:
+User profile
+Settings
+2. Main Chat Area (center-left)
+Standard ChatGPT chat layout:
+Messages stacked vertically
+User messages on right
+AI responses on left
+Input bar fixed at bottom:
+Placeholder: “Describe the AI agent you want to build…”
+Keep spacing, typography, and proportions very similar to ChatGPT
+3. Right Panel (ONLY ADDITION — core feature)
+
+Add a split-screen layout:
+
+Right Side = Live Agent Builder Panel
+
+This panel updates in real time based on chat.
+
+Include:
+
+A. Agent Identity
+
+AI agent avatar (simple, clean, Notion-style character)
+Agent name (auto-generated)
+Status badge:
+Building / Active / Needs Input
+
+B. Generated Interface Preview
+
+Dynamic UI preview based on user prompt
+Examples:
+Customer support → tickets dashboard
+Finance agent → payments/metrics cards
+Clean card-based layout
+🔌 Integration Button (inside chat, not separate page)
+
+Inside chat UI (important):
+
+Add a small button above input:
+“+ Connect Tools”
+
+When clicked:
+
+Opens modal with integrations:
+Stripe
+Jira
+Slack
+
+Each:
+
+Connect button
+Simple credential input
+Status indicator (Connected / Not Connected)
+🎨 Design Rules (STRICT)
+Match ChatGPT:
+Font style
+Spacing
+Message bubbles
+Input bar
+Dark mode only
+Colors:
+Primary accent: #233dff
+Secondary accent: #533afd
+Use accent color ONLY for:
+Buttons
+Active states
+Highlights
+⚡ UX Behavior
+User types → AI responds → agent appears/updates on right instantly
+No page reloads
+Everything feels real-time
+🧠 Key Constraint
+
+DO NOT redesign the chat experience.
+DO NOT make it look like a dashboard-first product.
+
+This is:
+
+ChatGPT… but instead of answers, it builds AI agents live.
+
+💡 One-line direction
+
+“Take ChatGPT, split it in half, and make the right side come alive.”
