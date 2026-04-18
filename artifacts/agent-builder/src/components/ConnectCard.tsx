@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Loader2, Plug } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, Plug, RefreshCw } from "lucide-react";
 import { fetchConnections, type ConnectionStatus } from "@/lib/agent-api";
 
 interface ConnectCardProps {
@@ -30,7 +30,9 @@ export function ConnectCard({
       const all = await fetchConnections();
       const found = all.find((c) => c.id === integrationId) ?? null;
       setStatus(found);
-      if (found?.connected && onConnected) onConnected(found);
+      if (found?.connected && !found.needs_reauthorization && onConnected) {
+        onConnected(found);
+      }
     } finally {
       setLoading(false);
     }
@@ -52,7 +54,15 @@ export function ConnectCard({
     void refresh();
   };
 
+  const handleReconnect = () => {
+    window.alert(
+      `${integrationName} is connected but doesn't have all the access this assistant needs. Disconnect ${integrationName} from the workspace's Connections panel, then reconnect it and approve the additional permissions.`,
+    );
+    void refresh();
+  };
+
   const brand = BRAND_PROMPTS[integrationId] ?? `Connect ${integrationName}`;
+  const needsReauth = Boolean(status?.connected && status?.needs_reauthorization);
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -69,6 +79,12 @@ export function ConnectCard({
             <div className="text-xs text-muted-foreground flex items-center gap-1.5">
               <Loader2 className="h-3 w-3 animate-spin" /> Checking…
             </div>
+          ) : needsReauth ? (
+            <div className="text-xs text-amber-300 flex items-center gap-1.5">
+              <AlertTriangle className="h-3 w-3" />
+              {status?.reauthorization_message ??
+                `Reconnect to grant ${integrationName} the access this assistant needs.`}
+            </div>
           ) : status?.connected ? (
             <div className="text-xs text-emerald-300 flex items-center gap-1.5">
               <CheckCircle2 className="h-3 w-3" />
@@ -80,7 +96,16 @@ export function ConnectCard({
             </div>
           )}
         </div>
-        {!status?.connected && !loading ? (
+        {!loading && needsReauth ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handleReconnect}
+            className="h-8 gap-1.5"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Reconnect
+          </Button>
+        ) : !status?.connected && !loading ? (
           <Button
             size="sm"
             onClick={handleConnect}

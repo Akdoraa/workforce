@@ -196,6 +196,21 @@ export async function runAgent(
 function humanizeRuntimeError(label: string, technical: string): string {
   const lower = technical.toLowerCase();
   const action = label.toLowerCase();
+  // Gmail / Google APIs return 403 with bodies that include
+  // "ACCESS_TOKEN_SCOPE_INSUFFICIENT" or "Insufficient Permission" when a
+  // connected account is missing a required OAuth scope. Surface that
+  // explicitly so users know reconnecting (not retrying) is the fix.
+  if (
+    lower.includes("access_token_scope_insufficient") ||
+    lower.includes("insufficient permission") ||
+    lower.includes("insufficient authentication scopes") ||
+    lower.includes("insufficientpermissions")
+  ) {
+    const service = label.toLowerCase().includes("gmail")
+      ? "Gmail"
+      : "the connected account";
+    return `Couldn't ${action} — ${service} isn't authorized to do this. Please reconnect it and grant the requested access.`;
+  }
   if (
     lower.includes("not connected") ||
     lower.includes("401") ||

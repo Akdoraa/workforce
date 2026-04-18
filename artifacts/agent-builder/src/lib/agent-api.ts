@@ -14,6 +14,9 @@ export interface ConnectionStatus {
   connected: boolean;
   identity: string | null;
   display_name: string | null;
+  needs_reauthorization?: boolean;
+  missing_scopes?: string[];
+  reauthorization_message?: string;
   error?: string;
 }
 

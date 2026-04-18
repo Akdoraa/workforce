@@ -64,9 +64,10 @@ export function BlueprintPreview({
   const requiredIds = blueprint.integrations.map((i) => i.id);
   const allConnected =
     requiredIds.length > 0 &&
-    requiredIds.every(
-      (id) => connections.find((c) => c.id === id)?.connected,
-    );
+    requiredIds.every((id) => {
+      const c = connections.find((c) => c.id === id);
+      return Boolean(c?.connected && !c.needs_reauthorization);
+    });
 
   const ready = blueprint.status === "ready" || allConnected;
   const canDeploy = ready && allConnected && !deploying;

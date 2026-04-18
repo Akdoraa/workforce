@@ -8,6 +8,24 @@ export const GMAIL_INTEGRATION: IntegrationDefinition = {
   label: "your inbox",
   description: "Read, search, and send email from your inbox.",
   brand_color: "#ea4335",
+  required_scopes: [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.send",
+  ],
+  scope_equivalents: {
+    "https://www.googleapis.com/auth/gmail.readonly": [
+      "https://www.googleapis.com/auth/gmail.modify",
+      "https://mail.google.com/",
+    ],
+    "https://www.googleapis.com/auth/gmail.send": [
+      "https://www.googleapis.com/auth/gmail.modify",
+      "https://mail.google.com/",
+    ],
+  },
+  // /users/me/profile requires gmail.readonly (or modify/full-mail). If it
+  // returns 403 with ACCESS_TOKEN_SCOPE_INSUFFICIENT, the connection only
+  // has the addons-scoped permissions and needs to be reauthorized.
+  scope_probe: { path: "/gmail/v1/users/me/profile" },
 };
 
 async function gmailRequest<T = unknown>(
