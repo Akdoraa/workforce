@@ -4,7 +4,7 @@ import type { IntegrationDefinition, IntegrationPrimitive } from "./types";
 
 export const SHEETS_INTEGRATION: IntegrationDefinition = {
   id: "sheets",
-  connector_name: "google-sheets",
+  connector_name: "google-sheet",
   name: "Google Sheets",
   label: "your spreadsheets",
   description: "Read and write rows in your Google Sheets.",
@@ -37,7 +37,7 @@ async function sheetsRequest<T = unknown>(
   path: string,
   init: { method?: string; body?: unknown; headers?: Record<string, string> } = {},
 ): Promise<T> {
-  const res = await connectorFetch("google-sheets", path, {
+  const res = await connectorFetch("google-sheet", path, {
     method: init.method,
     body: init.body,
     headers: {

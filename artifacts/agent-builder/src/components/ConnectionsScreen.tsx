@@ -261,16 +261,13 @@ export function ConnectionsScreen({ highlightId, onHighlightConsumed }: Props) {
                       <div className="text-xs text-muted-foreground mt-0.5 truncate">
                         {c.connected
                           ? c.identity ?? c.display_name ?? "Connected"
-                          : `Not connected — ${c.label}`}
+                          : c.unreachable
+                            ? `Couldn't verify — ${c.name} status is unknown`
+                            : `Not connected — ${c.label}`}
                       </div>
                       {needsReauth && c.reauthorization_message ? (
                         <div className="text-xs text-amber-300 mt-1">
                           {c.reauthorization_message}
-                        </div>
-                      ) : null}
-                      {c.error ? (
-                        <div className="text-xs text-amber-300 mt-1">
-                          Couldn't reach {c.name}. Try again in a moment.
                         </div>
                       ) : null}
                     </div>
@@ -372,6 +369,13 @@ function StatusBadge({ connection }: { connection: ConnectionStatus }) {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
         <CheckCircle2 className="h-3 w-3" /> Connected
+      </span>
+    );
+  }
+  if (connection.unreachable) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+        <AlertTriangle className="h-3 w-3" /> Check failed
       </span>
     );
   }

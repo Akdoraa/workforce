@@ -19,6 +19,8 @@ const inflight = new Map<string, Promise<Connection | null>>();
 
 export interface ConnectorAccount {
   connected: boolean;
+  /** True when we couldn't ask Replit at all (auth/identity/infra). Distinct from !connected. */
+  unreachable?: boolean;
   identity: string | null;
   display_name: string | null;
   granted_scopes: string[];
@@ -97,19 +99,42 @@ export async function fetchConnection(
         // giving up — almost always succeeds on the second try.
         if (/429|too many requests/i.test(msg)) {
           await new Promise((r) => setTimeout(r, 750));
-          items = await sdk.listConnections({
-            connector_names: connectorName,
-          });
-        } else if (/\b401\b|unauthorized/i.test(msg)) {
-          // 401 from listConnections means the current user simply hasn't
-          // authorized this connector yet. That's "Not connected", not a
-          // server error — surface it as such instead of "Couldn't reach …".
+          try {
+            items = await sdk.listConnections({
+              connector_names: connectorName,
+            });
+          } catch (retryErr) {
+            const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+            if (/failed to list connections.*\b401\b/i.test(retryMsg)) {
+              // Rate-limit cleared, user still has no connection for this connector.
+              console.log(`[connectors] ${connectorName}: not connected (Replit returned 401 after 429 retry — user/repl has no ${connectorName} connection)`);
+              items = [];
+            } else {
+              throw retryErr;
+            }
+          }
+        } else if (/failed to list connections.*\b401\b/i.test(msg)) {
+          // The SDK raises exactly "Failed to list connections: 401 Unauthorized"
+          // when Replit returns HTTP 401 for a connector_names-filtered query.
+          // Replit uses 401 here to mean "no connection found for this
+          // user/repl with connector X" — it is a definitive "not connected"
+          // signal, not an identity problem.
+          //
+          // A real identity failure (e.g. missing REPL_IDENTITY) is caught
+          // *before* any HTTP call — the SDK throws "Replit identity token
+          // not found" (no "list connections" in the message) — so that case
+          // would NOT match this branch and would propagate as `unreachable`.
+          //
+          // Matching the full SDK message prefix keeps us from silently
+          // swallowing other 401-like errors that don't come from listConnections.
+          console.log(`[connectors] ${connectorName}: not connected (Replit returned 401 — user/repl has no ${connectorName} connection)`);
           items = [];
         } else {
           throw err;
         }
       }
       const item = items[0] ?? null;
+      console.log(`[connectors] ${connectorName}: ${item ? `connected (status=${item.status ?? "unknown"})` : "not connected"}`);
       cache.set(connectorName, {
         item,
         expires: Date.now() + CACHE_TTL_MS,
@@ -337,8 +362,10 @@ export async function getConnectorAccount(
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
+    console.log(`[connectors] ${connectorName}: unreachable — ${message}`);
     return {
       connected: false,
+      unreachable: true,
       identity: null,
       display_name: null,
       granted_scopes: [],

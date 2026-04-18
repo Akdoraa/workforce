@@ -186,10 +186,10 @@ export function ConnectCard({
               <CheckCircle2 className="h-3 w-3" />
               Connected as {status.identity ?? status.display_name ?? "your account"}
             </div>
-          ) : status?.error ? (
+          ) : status?.unreachable ? (
             <div className="text-xs text-amber-300 flex items-center gap-1.5">
               <AlertTriangle className="h-3 w-3" />
-              Couldn't reach {integrationName}. Try again in a moment.
+              Couldn't verify — status unknown. Try again in a moment.
             </div>
           ) : (
             <div className="text-xs text-muted-foreground">

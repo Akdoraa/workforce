@@ -14,6 +14,8 @@ export interface ConnectionStatus {
   brand_color: string;
   connector_name: string;
   connected: boolean;
+  /** True when we couldn't ask Replit at all — distinct from definitively not connected. */
+  unreachable?: boolean;
   identity: string | null;
   display_name: string | null;
   needs_reauthorization?: boolean;

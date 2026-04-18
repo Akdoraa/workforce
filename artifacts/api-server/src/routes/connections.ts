@@ -25,6 +25,7 @@ async function buildStatus(
     brand_color: integ.brand_color,
     connector_name: integ.connector_name,
     connected: acct.connected,
+    unreachable: acct.unreachable ?? false,
     identity: acct.identity,
     display_name: acct.display_name,
     needs_reauthorization: false,
