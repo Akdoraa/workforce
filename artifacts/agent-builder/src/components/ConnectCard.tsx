@@ -2,6 +2,23 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Plug, RefreshCw } from "lucide-react";
 import { fetchConnections, type ConnectionStatus } from "@/lib/agent-api";
+import gmailIcon from "@assets/image_1776501311466.png";
+import hubspotIcon from "@assets/image_1776501330582.png";
+import stripeIcon from "@assets/image_1776501341190.png";
+import driveIcon from "@assets/image_1776501349581.png";
+import sheetsIcon from "@assets/image_1776501356954.png";
+import docsIcon from "@assets/image_1776501363462.png";
+import notionIcon from "@assets/image_1776501370450.png";
+
+const BRAND_ICONS: Record<string, string> = {
+  gmail: gmailIcon,
+  hubspot: hubspotIcon,
+  stripe: stripeIcon,
+  drive: driveIcon,
+  sheets: sheetsIcon,
+  docs: docsIcon,
+  notion: notionIcon,
+};
 
 interface ConnectCardProps {
   integrationId: string;
@@ -137,12 +154,22 @@ export function ConnectCard({
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       <div className="px-4 py-3 flex items-center gap-3">
-        <div
-          className="h-9 w-9 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0"
-          style={{ backgroundColor: status?.brand_color ?? "#888" }}
-        >
-          {integrationName.slice(0, 1)}
-        </div>
+        {BRAND_ICONS[integrationId] ? (
+          <div className="h-9 w-9 rounded-lg bg-white border border-border flex items-center justify-center shrink-0 overflow-hidden">
+            <img
+              src={BRAND_ICONS[integrationId]}
+              alt=""
+              className="h-6 w-6 object-contain"
+            />
+          </div>
+        ) : (
+          <div
+            className="h-9 w-9 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0"
+            style={{ backgroundColor: status?.brand_color ?? "#888" }}
+          >
+            {integrationName.slice(0, 1)}
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium truncate">{brand}</div>
           {loading ? (
