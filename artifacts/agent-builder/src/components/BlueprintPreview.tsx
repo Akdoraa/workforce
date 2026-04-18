@@ -172,14 +172,14 @@ export function BlueprintPreview({
         >
           {deploying ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" /> Deploying…
+              <Loader2 className="h-4 w-4 animate-spin" /> Setting up your assistant…
             </>
           ) : !ready ? (
             "Still planning…"
           ) : !allConnected ? (
-            "Connect every account to deploy"
+            "Connect every account to launch"
           ) : (
-            "Deploy assistant"
+            "Launch assistant"
           )}
         </Button>
       </div>

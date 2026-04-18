@@ -30,8 +30,9 @@ export function ConnectCard({
       const all = await fetchConnections();
       const found = all.find((c) => c.id === integrationId) ?? null;
       setStatus(found);
-      if (found?.connected && !found.needs_reauthorization && onConnected) {
-        onConnected(found);
+      if (found?.connected && !found.needs_reauthorization) {
+        setHint(null);
+        if (onConnected) onConnected(found);
       }
     } finally {
       setLoading(false);
@@ -45,18 +46,18 @@ export function ConnectCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [integrationId]);
 
+  const [hint, setHint] = useState<string | null>(null);
+
   const handleConnect = () => {
-    // Replit connector OAuth happens through the platform — when the user
-    // completes setup the polling above will detect it.
-    window.alert(
-      `To connect ${integrationName}, accept the connection prompt that appears in the workspace. This card will turn green once it's wired up.`,
+    setHint(
+      `Approve the ${integrationName} sign-in when it pops up. This card turns green as soon as it's ready.`,
     );
     void refresh();
   };
 
   const handleReconnect = () => {
-    window.alert(
-      `${integrationName} is connected but doesn't have all the access this assistant needs. Disconnect ${integrationName} from the workspace's Connections panel, then reconnect it and approve the additional permissions.`,
+    setHint(
+      `${integrationName} needs a bit more access. Sign out of ${integrationName} from your connections, then sign in again and approve the extra permissions.`,
     );
     void refresh();
   };
@@ -90,6 +91,11 @@ export function ConnectCard({
               <CheckCircle2 className="h-3 w-3" />
               Connected as {status.identity ?? status.display_name ?? "your account"}
             </div>
+          ) : status?.error ? (
+            <div className="text-xs text-amber-300 flex items-center gap-1.5">
+              <AlertTriangle className="h-3 w-3" />
+              Couldn't reach {integrationName}. Try again in a moment.
+            </div>
           ) : (
             <div className="text-xs text-muted-foreground">
               Not connected — {integrationLabel ?? "needed for this assistant"}
@@ -115,6 +121,11 @@ export function ConnectCard({
           </Button>
         ) : null}
       </div>
+      {hint ? (
+        <div className="px-4 py-2 text-xs text-muted-foreground bg-muted/40 border-t border-border">
+          {hint}
+        </div>
+      ) : null}
     </div>
   );
 }

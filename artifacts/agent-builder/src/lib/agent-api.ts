@@ -2,6 +2,7 @@ import {
   type ActivityEvent,
   type Blueprint,
   type DeployedAgent,
+  type Run,
 } from "@workspace/api-zod";
 
 const API_BASE = `${import.meta.env.BASE_URL}api`;
@@ -81,27 +82,69 @@ export async function fetchAgent(id: string): Promise<DeployedAgent | null> {
   return (await res.json()).agent;
 }
 
+export async function fetchRuns(id: string, limit = 25): Promise<Run[]> {
+  const res = await fetch(`${API_BASE}/agents/${id}/runs?limit=${limit}`);
+  if (!res.ok) return [];
+  return (await res.json()).runs ?? [];
+}
+
 export async function fetchActivity(id: string): Promise<ActivityEvent[]> {
   const res = await fetch(`${API_BASE}/agents/${id}/activity`);
   if (!res.ok) return [];
   return (await res.json()).events;
 }
 
+export type StreamState = "connected" | "reconnecting" | "lost";
+
 export function streamActivity(
   id: string,
   onEvent: (e: ActivityEvent) => void,
+  onState?: (state: StreamState) => void,
 ): () => void {
-  const es = new EventSource(`${API_BASE}/agents/${id}/activity/stream`);
-  es.onmessage = (msg) => {
+  let closed = false;
+  let es: EventSource | null = null;
+  let attempts = 0;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const open = () => {
+    if (closed) return;
+    es = new EventSource(`${API_BASE}/agents/${id}/activity/stream`);
+    es.onopen = () => {
+      attempts = 0;
+      onState?.("connected");
+    };
+    es.onmessage = (msg) => {
+      try {
+        const evt = JSON.parse(msg.data) as ActivityEvent;
+        onEvent(evt);
+      } catch {
+        // ignore malformed events
+      }
+    };
+    es.onerror = () => {
+      if (closed) return;
+      attempts += 1;
+      onState?.(attempts >= 4 ? "lost" : "reconnecting");
+      try {
+        es?.close();
+      } catch {
+        // ignore
+      }
+      es = null;
+      const delay = Math.min(1000 * 2 ** Math.min(attempts, 5), 15000);
+      retryTimer = setTimeout(open, delay);
+    };
+  };
+
+  open();
+
+  return () => {
+    closed = true;
+    if (retryTimer) clearTimeout(retryTimer);
     try {
-      const evt = JSON.parse(msg.data) as ActivityEvent;
-      onEvent(evt);
+      es?.close();
     } catch {
-      // ignore malformed events
+      // ignore
     }
   };
-  es.onerror = () => {
-    // keep connection — browser EventSource auto-reconnects
-  };
-  return () => es.close();
 }

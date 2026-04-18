@@ -142,11 +142,18 @@ export async function deployFromBlueprint({
     addMessageTo(
       agent.id,
       "assistant",
-      `Deployed. Your assistant is live — hit "Run now" on the right to watch it work.`,
+      `Your assistant is live — hit "Run now" on the right to watch it work.`,
     );
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
+    // Keep technical details in the console for debugging, but never
+    // surface raw HTTP/error text to the user — it leaks jargon.
+    // eslint-disable-next-line no-console
+    console.error("[agent-builder] launch failed", err);
     updateAgent(agent.id, { status: "Ready" });
-    addMessageTo(agent.id, "assistant", `Deploy hit an error: ${msg}`);
+    addMessageTo(
+      agent.id,
+      "assistant",
+      "Something got in the way of launching your assistant. Give it another try in a moment.",
+    );
   }
 }

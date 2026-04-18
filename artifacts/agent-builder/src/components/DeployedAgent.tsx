@@ -1,24 +1,28 @@
 import { useEffect, useRef, useState } from "react";
-import { type ActivityEvent, type DeployedAgent } from "@workspace/api-zod";
+import { type ActivityEvent, type DeployedAgent, type Run } from "@workspace/api-zod";
 import { Button } from "@/components/ui/button";
 import {
   Activity,
+  AlertCircle,
   CheckCircle2,
-  Globe,
   Loader2,
   Pause,
   Play,
   Power,
   Sparkles,
+  WifiOff,
+  XCircle,
 } from "lucide-react";
 import {
   fetchAgent,
   fetchConnections,
+  fetchRuns,
   pauseAgent,
   resumeAgent,
   runAgentNow,
   streamActivity,
   type ConnectionStatus,
+  type StreamState,
 } from "@/lib/agent-api";
 
 function describeCronHuman(
@@ -61,17 +65,36 @@ export function DeployedAgentDashboard({ deploymentId, onDisconnect }: Props) {
   const [connections, setConnections] = useState<ConnectionStatus[]>([]);
   const [running, setRunning] = useState(false);
   const [runMessage, setRunMessage] = useState<string | null>(null);
+  const [streamState, setStreamState] = useState<StreamState>("connected");
+  const [runs, setRuns] = useState<Record<string, Run>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let mounted = true;
+    const refreshRuns = () =>
+      fetchRuns(deploymentId, 50).then((rs) => {
+        if (!mounted) return;
+        setRuns((prev) => {
+          const next: Record<string, Run> = { ...prev };
+          for (const r of rs) next[r.id] = r;
+          return next;
+        });
+      });
     void fetchAgent(deploymentId).then((a) => mounted && setAgent(a));
     void fetchConnections().then((c) => mounted && setConnections(c));
-    const close = streamActivity(deploymentId, (e) => {
-      setActivity((prev) => [...prev, e].slice(-200));
-    });
+    void refreshRuns();
+    const close = streamActivity(
+      deploymentId,
+      (e) => {
+        setActivity((prev) => [...prev, e].slice(-200));
+      },
+      (s) => {
+        if (mounted) setStreamState(s);
+      },
+    );
     const t = setInterval(() => {
       void fetchAgent(deploymentId).then((a) => mounted && a && setAgent(a));
+      void refreshRuns();
     }, 10000);
     return () => {
       mounted = false;
@@ -110,6 +133,12 @@ export function DeployedAgentDashboard({ deploymentId, onDisconnect }: Props) {
       setRunning(false);
       const fresh = await fetchAgent(deploymentId);
       if (fresh) setAgent(fresh);
+      const rs = await fetchRuns(deploymentId, 50);
+      setRuns((prev) => {
+        const next: Record<string, Run> = { ...prev };
+        for (const r of rs) next[r.id] = r;
+        return next;
+      });
     }
   };
 
@@ -137,9 +166,8 @@ export function DeployedAgentDashboard({ deploymentId, onDisconnect }: Props) {
           <div className="h-3 w-3 rounded-full bg-green-500/60" />
         </div>
         <div className="flex-1 mx-2 flex items-center gap-2 bg-muted/50 rounded-md px-3 py-1.5 text-xs text-muted-foreground border border-border">
-          <Globe className="h-3.5 w-3.5" />
-          <span className="truncate">
-            {bp.name.toLowerCase().replace(/\s+/g, "-")}.deployed
+          <span className="truncate font-medium text-foreground/80">
+            {bp.name}
           </span>
         </div>
         <Button
@@ -311,6 +339,7 @@ export function DeployedAgentDashboard({ deploymentId, onDisconnect }: Props) {
             <div className="px-4 py-3 border-b border-border flex items-center gap-2">
               <Activity className="h-4 w-4 text-primary" />
               <div className="text-sm font-medium">Live activity</div>
+              <StreamStateBadge state={streamState} />
               <div className="ml-auto">
                 <Button
                   size="sm"
@@ -344,6 +373,12 @@ export function DeployedAgentDashboard({ deploymentId, onDisconnect }: Props) {
                 {runMessage}
               </div>
             ) : null}
+            {streamState === "lost" ? (
+              <div className="px-4 py-2 text-xs text-muted-foreground bg-muted/40 border-b border-border flex items-center gap-2">
+                <WifiOff className="h-3 w-3" />
+                We lost the live feed — refresh the page to catch up.
+              </div>
+            ) : null}
             <div
               ref={scrollRef}
               className="max-h-96 overflow-y-auto divide-y divide-border"
@@ -353,44 +388,16 @@ export function DeployedAgentDashboard({ deploymentId, onDisconnect }: Props) {
                   Nothing yet. Hit "Run now" to see your assistant work.
                 </div>
               ) : (
-                activity.map((e) => (
-                  <div
-                    key={e.id}
-                    className="px-4 py-2.5 flex items-start gap-3"
-                  >
-                    <div
-                      className={`h-1.5 w-1.5 rounded-full mt-1.5 shrink-0 ${
-                        e.kind === "error"
-                          ? "bg-red-400"
-                          : e.kind === "tool_call"
-                            ? "bg-primary"
-                            : e.kind === "tool_result"
-                              ? "bg-emerald-400"
-                              : e.kind === "run_start"
-                                ? "bg-blue-400"
-                                : e.kind === "run_end"
-                                  ? "bg-purple-400"
-                                  : "bg-muted-foreground"
-                      }`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div
-                        className={`text-sm ${
-                          e.kind === "error"
-                            ? "text-red-300"
-                            : e.kind === "thought"
-                              ? "text-muted-foreground italic"
-                              : ""
-                        }`}
-                      >
-                        {e.text}
-                      </div>
-                      <div className="text-[11px] text-muted-foreground mt-0.5">
-                        {fmtRelative(e.ts)}
-                      </div>
-                    </div>
-                  </div>
-                ))
+                groupActivityByRun(activity).map((g) => {
+                  const meta =
+                    (g.runId ? runs[g.runId] : null) ??
+                    (agent.current_run?.id === g.runId
+                      ? agent.current_run
+                      : agent.last_run?.id === g.runId
+                        ? agent.last_run
+                        : null);
+                  return <RunGroup key={g.key} group={g} runMeta={meta} />;
+                })
               )}
             </div>
           </div>
@@ -407,6 +414,210 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
         {title}
       </div>
       {children}
+    </div>
+  );
+}
+
+function StreamStateBadge({ state }: { state: StreamState }) {
+  if (state === "connected") return null;
+  if (state === "reconnecting") {
+    return (
+      <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full border border-border">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Reconnecting…
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full border border-border">
+      <WifiOff className="h-3 w-3" />
+      Live feed paused
+    </span>
+  );
+}
+
+interface RunGroupData {
+  key: string;
+  runId: string | null;
+  startEvent: ActivityEvent | null;
+  endEvent: ActivityEvent | null;
+  body: ActivityEvent[];
+  startTs: number;
+}
+
+function groupActivityByRun(events: ActivityEvent[]): RunGroupData[] {
+  const groups = new Map<string, RunGroupData>();
+  const order: string[] = [];
+  for (const e of events) {
+    const key = e.run_id ?? `__loose__:${e.id}`;
+    let g = groups.get(key);
+    if (!g) {
+      g = {
+        key,
+        runId: e.run_id,
+        startEvent: null,
+        endEvent: null,
+        body: [],
+        startTs: e.ts,
+      };
+      groups.set(key, g);
+      order.push(key);
+    }
+    if (e.kind === "run_start") {
+      g.startEvent = e;
+      g.startTs = e.ts;
+    } else if (e.kind === "run_end") {
+      g.endEvent = e;
+    } else {
+      g.body.push(e);
+    }
+  }
+  return order.map((k) => groups.get(k)!).filter(Boolean);
+}
+
+function fmtDurationSec(sec: number): string {
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return s ? `${m}m ${s}s` : `${m}m`;
+}
+
+function RunGroup({
+  group,
+  runMeta,
+}: {
+  group: RunGroupData;
+  runMeta: Run | null;
+}) {
+  const inFlight = !group.endEvent && (!runMeta || runMeta.status === "running");
+  // Always prefer authoritative run-lifecycle status. Only fall back to
+  // an indeterminate "finished" footer when we have an end event but no
+  // run record yet (e.g. race between activity stream and runs poll).
+  const status: Run["status"] | "unknown" =
+    runMeta?.status ?? (group.endEvent ? "unknown" : "running");
+  const triggerSource = runMeta?.trigger_source;
+  const headerWhen = new Date(group.startTs).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const triggerLabel =
+    triggerSource === "cron"
+      ? "on schedule"
+      : triggerSource === "manual"
+        ? "you started it"
+        : group.startEvent?.text?.startsWith("Triggered:")
+          ? "on schedule"
+          : "you started it";
+  const endTs = group.endEvent?.ts ?? runMeta?.ended_at ?? null;
+  const durationSec = endTs ? Math.max(1, Math.round((endTs - group.startTs) / 1000)) : null;
+
+  if (!group.runId) {
+    return (
+      <div className="px-4 py-2.5">
+        {[group.startEvent, ...group.body, group.endEvent]
+          .filter((e): e is ActivityEvent => Boolean(e))
+          .map((e) => (
+            <ActivityRow key={e.id} event={e} />
+          ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-card">
+      <div className="px-4 py-2 bg-muted/30 border-b border-border flex items-center gap-2 text-xs text-muted-foreground">
+        {inFlight ? (
+          <Loader2 className="h-3 w-3 animate-spin text-primary" />
+        ) : (
+          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+        )}
+        <span className="font-medium text-foreground/80">Run at {headerWhen}</span>
+        <span>· {triggerLabel}</span>
+      </div>
+      <div className="divide-y divide-border/60">
+        {group.body.map((e) => (
+          <ActivityRow key={e.id} event={e} />
+        ))}
+        {group.body.length === 0 && inFlight ? (
+          <div className="px-4 py-2.5 text-xs text-muted-foreground italic">
+            Working…
+          </div>
+        ) : null}
+      </div>
+      <div className="px-4 py-2 border-t border-border flex items-center gap-2 text-xs">
+        {inFlight ? (
+          <>
+            <Loader2 className="h-3 w-3 animate-spin text-primary" />
+            <span className="text-foreground/80">Running…</span>
+          </>
+        ) : status === "succeeded" ? (
+          <>
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+            <span className="text-emerald-300">Finished cleanly</span>
+            {durationSec ? (
+              <span className="text-muted-foreground">· {fmtDurationSec(durationSec)}</span>
+            ) : null}
+          </>
+        ) : status === "unknown" ? (
+          <>
+            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+            <span className="text-muted-foreground">Finished</span>
+            {durationSec ? (
+              <span className="text-muted-foreground">· {fmtDurationSec(durationSec)}</span>
+            ) : null}
+          </>
+        ) : status === "timed_out" ? (
+          <>
+            <AlertCircle className="h-3.5 w-3.5 text-yellow-400" />
+            <span className="text-yellow-300">Took too long and was stopped</span>
+            {durationSec ? (
+              <span className="text-muted-foreground">· {fmtDurationSec(durationSec)}</span>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <XCircle className="h-3.5 w-3.5 text-red-400" />
+            <span className="text-red-300">Didn't finish</span>
+            {durationSec ? (
+              <span className="text-muted-foreground">· {fmtDurationSec(durationSec)}</span>
+            ) : null}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ActivityRow({ event: e }: { event: ActivityEvent }) {
+  return (
+    <div className="px-4 py-2.5 flex items-start gap-3">
+      <div
+        className={`h-1.5 w-1.5 rounded-full mt-1.5 shrink-0 ${
+          e.kind === "error"
+            ? "bg-red-400"
+            : e.kind === "tool_call"
+              ? "bg-primary"
+              : e.kind === "tool_result"
+                ? "bg-emerald-400"
+                : "bg-muted-foreground"
+        }`}
+      />
+      <div className="flex-1 min-w-0">
+        <div
+          className={`text-sm ${
+            e.kind === "error"
+              ? "text-red-300"
+              : e.kind === "thought"
+                ? "text-muted-foreground italic"
+                : ""
+          }`}
+        >
+          {e.text}
+        </div>
+        <div className="text-[11px] text-muted-foreground mt-0.5">
+          {fmtRelative(e.ts)}
+        </div>
+      </div>
     </div>
   );
 }
