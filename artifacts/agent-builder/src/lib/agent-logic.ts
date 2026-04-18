@@ -94,22 +94,34 @@ export async function runBuilderTurn({
 
   const assistantMsgId = addMessageTo(agent.id, "assistant", "");
   let liveBlueprint: Blueprint = agent.blueprint;
+  let receivedText = false;
+  let patchCount = 0;
 
   await streamBuilderChat(liveBlueprint, messages, {
     onText: (delta) => {
+      receivedText = true;
       appendToMessage(agent.id, assistantMsgId, delta);
     },
     onToolCall: (name, args) => {
       addActivityTo(agent.id, assistantMsgId, friendlyToolLabel(name, args));
     },
     onPatch: (patch) => {
+      patchCount += 1;
       patchBlueprint(agent.id, patch);
       liveBlueprint = { ...liveBlueprint, ...patch } as Blueprint;
     },
     onError: (msg) => {
+      receivedText = true;
       appendToMessage(agent.id, assistantMsgId, `\n\n[error: ${msg}]`);
     },
     onDone: () => {
+      if (!receivedText) {
+        const fallback =
+          patchCount > 0
+            ? "Updated the blueprint on the right — take a look and tell me what to tweak."
+            : "Done.";
+        appendToMessage(agent.id, assistantMsgId, fallback);
+      }
       updateAgent(agent.id, { generating: false });
     },
   });

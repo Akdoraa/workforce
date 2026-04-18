@@ -33,6 +33,12 @@ export async function streamBuilderChat(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let doneCalled = false;
+  const fireDone = () => {
+    if (doneCalled) return;
+    doneCalled = true;
+    handlers.onDone?.();
+  };
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -53,13 +59,13 @@ export async function streamBuilderChat(
           else if (evt.type === "blueprint_patch")
             handlers.onPatch(evt.patch as BlueprintPatch);
           else if (evt.type === "error") handlers.onError?.(evt.message);
-          else if (evt.type === "done") handlers.onDone?.();
+          else if (evt.type === "done") fireDone();
         } catch {
           // ignore malformed
         }
       }
     }
   } finally {
-    handlers.onDone?.();
+    fireDone();
   }
 }

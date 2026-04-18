@@ -91,6 +91,7 @@ function App() {
                 <BlueprintPreview
                   blueprint={agent.blueprint}
                   deploying={agent.status === "Deploying"}
+                  generating={agent.generating}
                   onDeploy={handleDeploy}
                 />
               )}

@@ -181,20 +181,19 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
                   </div>
                 )}
 
-                {(hasContent || (msg.role === "assistant" && !liveAssistant)) &&
-                  hasContent && (
-                    <div
-                      className={`px-3.5 py-2.5 rounded-2xl ${
-                        msg.role === "user"
-                          ? "bg-secondary text-secondary-foreground rounded-tr-sm"
-                          : "bg-card border border-border text-foreground rounded-tl-sm"
-                      }`}
-                    >
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                        {msg.content}
-                      </p>
-                    </div>
-                  )}
+                {hasContent && (
+                  <div
+                    className={`px-3.5 py-2.5 rounded-2xl ${
+                      msg.role === "user"
+                        ? "bg-secondary text-secondary-foreground rounded-tr-sm"
+                        : "bg-card border border-border text-foreground rounded-tl-sm"
+                    }`}
+                  >
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                      {msg.content}
+                    </p>
+                  </div>
+                )}
 
                 {liveAssistant && !hasContent && activities.length === 0 && (
                   <div className="px-3.5 py-2.5 rounded-2xl bg-card border border-border text-foreground rounded-tl-sm flex items-center gap-2">

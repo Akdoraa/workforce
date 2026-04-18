@@ -9,6 +9,7 @@ interface BlueprintPreviewProps {
   blueprint: Blueprint;
   onDeploy: () => void;
   deploying: boolean;
+  generating: boolean;
 }
 
 function describeCronHuman(
@@ -44,6 +45,7 @@ export function BlueprintPreview({
   blueprint,
   onDeploy,
   deploying,
+  generating,
 }: BlueprintPreviewProps) {
   const [connections, setConnections] = useState<ConnectionStatus[]>([]);
 
@@ -72,6 +74,15 @@ export function BlueprintPreview({
   const ready = blueprint.status === "ready" || allConnected;
   const canDeploy = ready && allConnected && !deploying;
 
+  const blueprintIsEmpty =
+    blueprint.watches.length === 0 &&
+    blueprint.capabilities.length === 0 &&
+    blueprint.tools.length === 0 &&
+    blueprint.triggers.length === 0 &&
+    blueprint.integrations.length === 0 &&
+    !blueprint.soul &&
+    !blueprint.role_summary;
+
   return (
     <div className="h-full w-full flex flex-col bg-background overflow-hidden">
       <div className="px-6 py-5 border-b border-border shrink-0">
@@ -84,6 +95,27 @@ export function BlueprintPreview({
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-2xl mx-auto w-full">
+        {blueprintIsEmpty ? (
+          <div className="rounded-xl border border-dashed border-border bg-card/40 p-6 text-sm text-muted-foreground flex gap-3 items-start">
+            <div className="text-primary mt-0.5">
+              {generating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+            </div>
+            <div>
+              <div className="text-foreground font-medium mb-1">
+                I'll fill this in once we've nailed down the details.
+              </div>
+              <div>
+                Answer the question on the left and I'll start sketching the
+                blueprint here in real time as we go.
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {blueprint.watches.length > 0 ? (
           <Section icon={<Eye className="h-4 w-4" />} title="What I'll watch">
             <ul className="space-y-1.5">

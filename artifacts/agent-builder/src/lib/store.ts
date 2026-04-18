@@ -34,11 +34,12 @@ export interface Agent {
   generating: boolean;
 }
 
-const STORAGE_KEY = "agent-builder-state-v4";
+const STORAGE_KEY = "agent-builder-state-v5";
 const LEGACY_KEYS = [
   "agent-builder-state",
   "agent-builder-state-v2",
   "agent-builder-state-v3",
+  "agent-builder-state-v4",
 ];
 
 interface AppState {
@@ -72,6 +73,30 @@ const createDefaultAgent = (): Agent => {
   };
 };
 
+function normalizeMessage(raw: unknown): Message | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const role = r["role"];
+  if (role !== "user" && role !== "assistant") return null;
+  const id = typeof r["id"] === "string" ? (r["id"] as string) : crypto.randomUUID();
+  const content = typeof r["content"] === "string" ? (r["content"] as string) : "";
+  const timestamp =
+    typeof r["timestamp"] === "number" ? (r["timestamp"] as number) : Date.now();
+  const activitiesRaw = Array.isArray(r["activities"]) ? r["activities"] : [];
+  const activities: MessageActivity[] = activitiesRaw
+    .map((a) => {
+      if (!a || typeof a !== "object") return null;
+      const ar = a as Record<string, unknown>;
+      const label = typeof ar["label"] === "string" ? (ar["label"] as string) : null;
+      if (!label) return null;
+      const aid =
+        typeof ar["id"] === "string" ? (ar["id"] as string) : crypto.randomUUID();
+      return { id: aid, label } satisfies MessageActivity;
+    })
+    .filter((a): a is MessageActivity => a !== null);
+  return { id, role, content, timestamp, activities };
+}
+
 function normalizeAgent(raw: unknown): Agent | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
@@ -80,11 +105,15 @@ function normalizeAgent(raw: unknown): Agent | null {
   const blueprint = blueprintParsed.success
     ? blueprintParsed.data
     : emptyBlueprint();
+  const rawMessages = Array.isArray(r["messages"]) ? r["messages"] : [];
+  const messages: Message[] = rawMessages
+    .map(normalizeMessage)
+    .filter((m): m is Message => m !== null);
   return {
     id: r["id"] as string,
     name: typeof r["name"] === "string" ? (r["name"] as string) : blueprint.name,
     status: (r["status"] as Status) ?? "Drafting",
-    messages: Array.isArray(r["messages"]) ? (r["messages"] as Message[]) : [],
+    messages,
     blueprint,
     createdAt:
       typeof r["createdAt"] === "number" ? (r["createdAt"] as number) : Date.now(),
