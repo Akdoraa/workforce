@@ -42,7 +42,7 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
             handleSubmit(e);
           }
         }}
-        placeholder="Describe the AI agent dashboard you want to build..."
+        placeholder="Describe the workflow you want to automate..."
         className="w-full bg-transparent border-0 focus:ring-0 resize-none py-4 pl-4 pr-12 max-h-[200px] min-h-[56px] text-sm relative z-10 outline-none"
         rows={1}
         disabled={isBuilding}
@@ -71,11 +71,10 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
           </div>
           <div className="space-y-2">
             <h1 className="text-3xl font-semibold tracking-tight">
-              What dashboard should I build for you?
+              What should we automate?
             </h1>
             <p className="text-muted-foreground">
-              Describe the AI agent you want. I'll generate the live dashboard
-              on the right — then you can run it.
+              Describe the workflow, and we'll deploy the agent.
             </p>
           </div>
           <div className="w-full">{inputForm}</div>
