@@ -1,94 +1,151 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { randomUUID } from "node:crypto";
+// SOUL.md / AGENTS.md are kept as separate canonical markdown files.
+// They are bundled in via the esbuild text loader (see build.mjs) so they
+// can evolve independently while still shipping with the binary.
+import SOUL_MD from "./SOUL.md";
+import AGENTS_MD from "./AGENTS.md";
+import { type Blueprint, type BlueprintPatch } from "@workspace/api-zod";
 import {
-  type Blueprint,
-  type BlueprintPatch,
-} from "@workspace/api-zod";
+  INTEGRATIONS,
+  PRIMITIVES,
+  describeRegistryForBuilder,
+  findIntegration,
+  findPrimitive,
+} from "../../lib/registry";
 
 export const BUILDER_TOOLS: Anthropic.Tool[] = [
   {
     name: "ask_clarifying_question",
     description:
-      "Ask the user a single, focused clarifying question when the Blueprint has a meaningful gap (e.g. missing trigger, unspecified channel, unclear scope). Do NOT use this for things you can reasonably propose yourself — prefer propose_capability for those.",
+      "Ask a single, focused question when there's a real gap you can't reasonably guess. Use sparingly.",
     input_schema: {
       type: "object",
       properties: {
-        question: { type: "string", description: "The question to ask." },
-        gap: {
-          type: "string",
-          description:
-            "Which Blueprint field this question is filling (e.g. 'triggers', 'integrations', 'system_prompt').",
-        },
+        question: { type: "string" },
+        gap: { type: "string", description: "Which Blueprint field this fills." },
       },
       required: ["question", "gap"],
     },
   },
   {
-    name: "suggest_integration",
+    name: "set_role",
     description:
-      "Add an integration to the Blueprint when the user mentions a workflow that maps to a known platform (e.g. Slack, Stripe, Jira, Gmail, HubSpot, Linear, Notion). Use this to push the agent forward — you don't need explicit permission to suggest an obvious match.",
+      "Set or update the agent's name, one-line role summary, and the bullet list of things it watches. Call early once you know what the assistant is for.",
     input_schema: {
       type: "object",
       properties: {
-        id: {
+        name: { type: "string" },
+        role_summary: {
           type: "string",
-          description: "Lowercase platform id, e.g. 'slack', 'stripe'.",
+          description: "One sentence describing the agent's role in plain English.",
         },
-        name: { type: "string", description: "Display name, e.g. 'Slack'." },
-        reason: {
-          type: "string",
-          description: "One sentence on why this integration fits.",
+        watches: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Bullet items: e.g. ['New replies in your inbox', 'Contacts going quiet for 7+ days']",
         },
       },
-      required: ["id", "name", "reason"],
+      required: ["name", "role_summary"],
     },
   },
   {
-    name: "propose_capability",
+    name: "add_integration",
+    description: `Add an integration the assistant needs. The id MUST be one of: ${INTEGRATIONS.map((i) => i.id).join(", ")}.`,
+    input_schema: {
+      type: "object",
+      properties: {
+        id: { type: "string", enum: INTEGRATIONS.map((i) => i.id) },
+        reason: {
+          type: "string",
+          description: "One sentence in plain English on why this integration is needed.",
+        },
+      },
+      required: ["id", "reason"],
+    },
+  },
+  {
+    name: "add_tool",
+    description: `Give the agent a capability by selecting a primitive from the registry. The primitive name MUST be one of: ${PRIMITIVES.map((p) => p.name).join(", ")}.`,
+    input_schema: {
+      type: "object",
+      properties: {
+        primitive: {
+          type: "string",
+          enum: PRIMITIVES.map((p) => p.name),
+        },
+      },
+      required: ["primitive"],
+    },
+  },
+  {
+    name: "add_trigger",
     description:
-      "Propose a capability that goes beyond the user's literal request — the kind of thing a thoughtful builder would add (e.g. 'flag angry customers to Slack', 'auto-summarize threads daily'). Each call adds one capability; the user can react in chat.",
+      "Add a trigger that causes the agent to run. For scheduled triggers provide a 5-field cron and IANA timezone. For event-style triggers leave cron empty and only set description+task. The 'description' is shown to the client; 'task' is what the agent receives when it fires.",
     input_schema: {
       type: "object",
       properties: {
         description: {
           type: "string",
-          description: "One concise sentence describing the capability.",
+          description: "Plain-English sentence shown to the client.",
         },
+        task: {
+          type: "string",
+          description: "Plain-English instruction the agent receives when this fires.",
+        },
+        cron: {
+          type: "string",
+          description: "Optional 5-field cron, e.g. '0 8 * * 1' for Mondays 8am.",
+        },
+        timezone: {
+          type: "string",
+          description:
+            "IANA timezone, e.g. 'Asia/Manila'. REQUIRED if cron is set.",
+        },
+      },
+      required: ["description", "task"],
+    },
+  },
+  {
+    name: "add_capability",
+    description:
+      "Add a high-level, plain-English capability the agent has (e.g. 'Nudges you when a contact has gone quiet for a week'). Use this to push past the user's literal request.",
+    input_schema: {
+      type: "object",
+      properties: {
+        description: { type: "string" },
       },
       required: ["description"],
     },
   },
   {
-    name: "finalize_blueprint",
+    name: "set_voice",
     description:
-      "Call this ONLY when the Blueprint is genuinely complete: name set, system_prompt written, at least one trigger, at least one integration OR tool, and at least one capability. This ends planning mode and surfaces the Deploy button.",
+      "Write the deployed agent's SOUL: a short paragraph describing how the agent sounds when it talks to the client day-to-day.",
     input_schema: {
       type: "object",
-      properties: {
-        name: {
-          type: "string",
-          description:
-            "Final agent name (short, descriptive, e.g. 'Support Triage Bot').",
-        },
-        system_prompt: {
-          type: "string",
-          description:
-            "The final system prompt for the agent — a paragraph describing its goal, tone, and behavior.",
-        },
-        triggers: {
-          type: "array",
-          items: { type: "string" },
-          description:
-            "Concrete events that cause the agent to act (e.g. 'New Zendesk ticket', 'Stripe charge failed').",
-        },
-        tools: {
-          type: "array",
-          items: { type: "string" },
-          description:
-            "Concrete actions the agent can take (e.g. 'Reply to ticket', 'Post to Slack channel').",
-        },
-      },
-      required: ["name", "system_prompt", "triggers", "tools"],
+      properties: { soul: { type: "string" } },
+      required: ["soul"],
+    },
+  },
+  {
+    name: "set_rules",
+    description:
+      "Write the deployed agent's AGENTS.md: a short operating contract used as the agent's system prompt. What it does, what it doesn't, how it uses its tools.",
+    input_schema: {
+      type: "object",
+      properties: { agents_md: { type: "string" } },
+      required: ["agents_md"],
+    },
+  },
+  {
+    name: "finalize_blueprint",
+    description:
+      "Finalize when the Blueprint has: a name, role summary, system prompt (use set_rules first), at least one integration, at least one tool, at least one trigger.",
+    input_schema: {
+      type: "object",
+      properties: {},
     },
   },
 ];
@@ -98,44 +155,135 @@ export interface ToolExecution {
   resultText: string;
 }
 
+function uniqByKey<T>(arr: T[], key: (t: T) => string): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const it of arr) {
+    const k = key(it);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(it);
+  }
+  return out;
+}
+
 export function executeBuilderTool(
   name: string,
   args: Record<string, unknown>,
   current: Blueprint,
 ): ToolExecution {
   switch (name) {
-    case "ask_clarifying_question": {
+    case "ask_clarifying_question":
+      return { patch: {}, resultText: "Question delivered. Wait for the user's reply." };
+
+    case "set_role": {
+      const patch: BlueprintPatch = {
+        name: String(args["name"] ?? current.name),
+        role_summary: String(args["role_summary"] ?? current.role_summary ?? ""),
+        watches: Array.isArray(args["watches"])
+          ? (args["watches"] as unknown[]).map((w) => String(w))
+          : current.watches,
+      };
       return {
-        patch: {},
-        resultText: `Question delivered to user. Wait for their reply before assuming an answer.`,
+        patch,
+        resultText: `Role set: '${patch.name}'.`,
       };
     }
-    case "suggest_integration": {
+
+    case "add_integration": {
       const id = String(args["id"] ?? "").toLowerCase();
-      const displayName = String(args["name"] ?? id);
-      const reason = String(args["reason"] ?? "");
-      if (!id) {
-        return { patch: {}, resultText: "Error: missing integration id." };
-      }
-      if (current.integrations.some((i) => i.id === id)) {
+      const integ = findIntegration(id);
+      if (!integ) {
         return {
           patch: {},
-          resultText: `Integration '${id}' already in blueprint.`,
+          resultText: `Error: '${id}' is not in the registry. Choose one of: ${INTEGRATIONS.map((i) => i.id).join(", ")}.`,
         };
+      }
+      if (current.integrations.some((i) => i.id === id)) {
+        return { patch: {}, resultText: `Integration '${id}' already added.` };
       }
       const next = [
         ...current.integrations,
-        { id, name: displayName, reason },
+        {
+          id: integ.id,
+          name: integ.name,
+          label: integ.label,
+          reason: String(args["reason"] ?? ""),
+        },
       ];
       return {
         patch: { integrations: next },
-        resultText: `Added integration '${displayName}'.`,
+        resultText: `Added integration '${integ.name}'.`,
       };
     }
-    case "propose_capability": {
+
+    case "add_tool": {
+      const primitiveName = String(args["primitive"] ?? "");
+      const prim = findPrimitive(primitiveName);
+      if (!prim) {
+        return {
+          patch: {},
+          resultText: `Error: primitive '${primitiveName}' not found.`,
+        };
+      }
+      if (current.tools.some((t) => (t.primitive ?? t.name) === prim.name)) {
+        return { patch: {}, resultText: `Tool '${prim.label}' already added.` };
+      }
+      const next = [
+        ...current.tools,
+        {
+          id: randomUUID(),
+          name: prim.label,
+          primitive: prim.name,
+          description: prim.description,
+        },
+      ];
+      // Auto-add the integration if missing.
+      let integrations = current.integrations;
+      if (!integrations.some((i) => i.id === prim.integration_id)) {
+        const integ = findIntegration(prim.integration_id);
+        if (integ) {
+          integrations = [
+            ...integrations,
+            { id: integ.id, name: integ.name, label: integ.label, reason: "" },
+          ];
+        }
+      }
+      return {
+        patch: { tools: next, integrations },
+        resultText: `Added capability '${prim.label}'.`,
+      };
+    }
+
+    case "add_trigger": {
+      const description = String(args["description"] ?? "").trim();
+      const task = String(args["task"] ?? description);
+      const cron = args["cron"] ? String(args["cron"]) : undefined;
+      const timezone = args["timezone"] ? String(args["timezone"]) : undefined;
+      if (!description) {
+        return { patch: {}, resultText: "Error: trigger description required." };
+      }
+      if (cron && !timezone) {
+        return {
+          patch: {},
+          resultText: "Error: scheduled triggers require a timezone.",
+        };
+      }
+      const trig = { id: randomUUID(), description, task, cron, timezone };
+      const next = uniqByKey(
+        [...current.triggers, trig],
+        (t) => t.description,
+      );
+      return {
+        patch: { triggers: next },
+        resultText: `Added trigger: '${description}'.`,
+      };
+    }
+
+    case "add_capability": {
       const description = String(args["description"] ?? "").trim();
       if (!description) {
-        return { patch: {}, resultText: "Error: missing description." };
+        return { patch: {}, resultText: "Error: description required." };
       }
       const next = [
         ...current.capabilities,
@@ -143,38 +291,42 @@ export function executeBuilderTool(
       ];
       return {
         patch: { capabilities: next },
-        resultText: `Proposed capability: '${description}'. Mention it briefly to the user.`,
+        resultText: `Added capability: '${description}'.`,
       };
     }
-    case "finalize_blueprint": {
-      const name = String(args["name"] ?? current.name);
-      const systemPrompt = String(args["system_prompt"] ?? current.system_prompt);
-      const triggerStrings = Array.isArray(args["triggers"])
-        ? (args["triggers"] as unknown[]).map((t) => String(t))
-        : [];
-      const toolStrings = Array.isArray(args["tools"])
-        ? (args["tools"] as unknown[]).map((t) => String(t))
-        : [];
 
-      const triggers = triggerStrings.map((description) => ({
-        id: randomUUID(),
-        description,
-      }));
-      const tools = toolStrings.map((toolName) => ({
-        id: randomUUID(),
-        name: toolName,
-      }));
-
-      const patch: BlueprintPatch = {
-        name,
-        system_prompt: systemPrompt,
-        triggers: triggers.length > 0 ? triggers : current.triggers,
-        tools: tools.length > 0 ? tools : current.tools,
-        status: "ready",
-      };
+    case "set_voice":
       return {
-        patch,
-        resultText: `Blueprint finalized. The Deploy button is now visible to the user.`,
+        patch: { soul: String(args["soul"] ?? "") },
+        resultText: "Voice updated.",
+      };
+
+    case "set_rules": {
+      const md = String(args["agents_md"] ?? "");
+      return {
+        patch: { agents_md: md, system_prompt: md },
+        resultText: "Operating rules updated.",
+      };
+    }
+
+    case "finalize_blueprint": {
+      const issues: string[] = [];
+      if (!current.name || current.name === "New Agent") issues.push("name");
+      if (!current.role_summary) issues.push("role_summary");
+      if (current.integrations.length === 0) issues.push("at least one integration");
+      if (current.tools.length === 0) issues.push("at least one tool");
+      if (current.triggers.length === 0) issues.push("at least one trigger");
+      if (!current.system_prompt && !current.agents_md)
+        issues.push("operating rules (set_rules)");
+      if (issues.length > 0) {
+        return {
+          patch: {},
+          resultText: `Cannot finalize yet — missing: ${issues.join(", ")}.`,
+        };
+      }
+      return {
+        patch: { status: "ready" },
+        resultText: "Blueprint finalized. The Deploy button is now visible.",
       };
     }
     default:
@@ -182,22 +334,22 @@ export function executeBuilderTool(
   }
 }
 
-export const BUILDER_SYSTEM_PROMPT = `You are the Builder Agent for OpenClaw, an AI agent platform. Your single job is to lead a conversation with a non-technical client until you have produced a COMPLETE Blueprint — a JSON spec describing the AI agent they want.
+export function buildSystemPrompt(): string {
+  return [
+    "You are the Builder. Two files define you:",
+    "",
+    "<<<SOUL.md>>>",
+    SOUL_MD,
+    "<<<END SOUL.md>>>",
+    "",
+    "<<<AGENTS.md>>>",
+    AGENTS_MD,
+    "<<<END AGENTS.md>>>",
+    "",
+    "## Integration registry available to you",
+    describeRegistryForBuilder(),
+  ].join("\n");
+}
 
-You do NOT chat for its own sake. Every assistant turn should either:
-- Use a tool to advance the Blueprint, OR
-- Reply briefly (1–3 sentences) to react to the user's last message and tee up the next step.
-
-You have four tools:
-- ask_clarifying_question — when there is a real gap you cannot reasonably guess.
-- suggest_integration — when the user mentions a workflow that obviously maps to a known platform (Slack, Stripe, Jira, Gmail, Zendesk, HubSpot, Linear, Notion, Salesforce, Shopify, etc.). Don't ask permission — add it and mention it.
-- propose_capability — push past the user's literal request. If they say "triage support tickets", you should also propose things like "flag angry customers to Slack" or "auto-summarize daily ticket volume". Be opinionated.
-- finalize_blueprint — call this ONLY when the Blueprint truly has: a name, a system prompt, at least one trigger, at least one integration or tool, and at least one capability.
-
-Style guide:
-- Keep replies short and warm. Never dump a wall of text.
-- It is fine — encouraged — to call multiple tools in one turn (e.g. suggest two integrations and propose a capability together).
-- Don't summarize the Blueprint in chat — the user can see it on the right panel as you build it.
-- Don't ask "anything else?" — propose something concrete instead.
-- If the user gives a vague request, propose 1–2 capabilities first to give them something to react to.
-- Only finalize when the agent feels genuinely usable, not at the first opportunity.`;
+// Backward compat export
+export const BUILDER_SYSTEM_PROMPT = buildSystemPrompt();

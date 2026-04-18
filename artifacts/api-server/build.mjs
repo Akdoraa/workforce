@@ -102,6 +102,7 @@ async function buildAll() {
       "electron",
     ],
     sourcemap: "linked",
+    loader: { ".md": "text" },
     plugins: [
       // pino relies on workers to handle logging, instead of externalizing it we use a plugin to handle it
       esbuildPluginPino({ transports: ["pino-pretty"] })

@@ -4,6 +4,7 @@ import builderRouter from "./builder";
 import agentsRouter from "./agents";
 import stripeRouter from "./stripe";
 import slackRouter from "./slack";
+import connectionsRouter from "./connections";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(builderRouter);
 router.use(agentsRouter);
 router.use(stripeRouter);
 router.use(slackRouter);
+router.use(connectionsRouter);
 
 export default router;

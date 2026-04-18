@@ -1,98 +1,65 @@
 import {
-  BuilderStreamEvent,
   type Blueprint,
+  type BlueprintPatch,
   type BuilderChatMessage,
+  type BuilderStreamEvent,
 } from "@workspace/api-zod";
 
 const API_BASE = `${import.meta.env.BASE_URL}api`;
 
-export interface BuilderStreamHandlers {
+interface Handlers {
   onText: (delta: string) => void;
-  onToolCall: (name: string, args: Record<string, unknown>) => void;
-  onPatch: (patch: Partial<Blueprint>) => void;
-  onError: (message: string) => void;
-  onDone: () => void;
+  onToolCall?: (name: string, args: Record<string, unknown>) => void;
+  onPatch: (patch: BlueprintPatch) => void;
+  onError?: (msg: string) => void;
+  onDone?: () => void;
 }
 
 export async function streamBuilderChat(
   blueprint: Blueprint,
   messages: BuilderChatMessage[],
-  handlers: BuilderStreamHandlers,
-  signal?: AbortSignal,
+  handlers: Handlers,
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/builder/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ blueprint, messages }),
-    signal,
   });
-
   if (!res.ok || !res.body) {
-    const text = await res.text().catch(() => "");
-    handlers.onError(`Builder request failed: ${res.status} ${text}`);
-    handlers.onDone();
+    handlers.onError?.(`Server returned ${res.status}`);
+    handlers.onDone?.();
     return;
   }
-
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    const events = buffer.split("\n\n");
-    buffer = events.pop() ?? "";
-
-    for (const block of events) {
-      const line = block
-        .split("\n")
-        .find((l) => l.startsWith("data:"));
-      if (!line) continue;
-      const json = line.slice(5).trim();
-      if (!json) continue;
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(json);
-      } catch {
-        continue;
-      }
-      const evt = BuilderStreamEvent.safeParse(parsed);
-      if (!evt.success) continue;
-      const data = evt.data;
-      switch (data.type) {
-        case "text":
-          handlers.onText(data.content);
-          break;
-        case "tool_call":
-          handlers.onToolCall(data.name, data.args);
-          break;
-        case "blueprint_patch":
-          handlers.onPatch(data.patch);
-          break;
-        case "error":
-          handlers.onError(data.message);
-          break;
-        case "done":
-          handlers.onDone();
-          return;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() ?? "";
+      for (const chunk of parts) {
+        const line = chunk.split("\n").find((l) => l.startsWith("data: "));
+        if (!line) continue;
+        const payload = line.slice(6).trim();
+        if (!payload) continue;
+        try {
+          const evt = JSON.parse(payload) as BuilderStreamEvent;
+          if (evt.type === "text") handlers.onText(evt.content);
+          else if (evt.type === "tool_call")
+            handlers.onToolCall?.(evt.name, evt.args);
+          else if (evt.type === "blueprint_patch")
+            handlers.onPatch(evt.patch as BlueprintPatch);
+          else if (evt.type === "error") handlers.onError?.(evt.message);
+          else if (evt.type === "done") handlers.onDone?.();
+        } catch {
+          // ignore malformed
+        }
       }
     }
+  } finally {
+    handlers.onDone?.();
   }
-  handlers.onDone();
-}
-
-export async function deployAgent(agentId: string): Promise<{
-  deployment_id: string;
-  url: string;
-}> {
-  const res = await fetch(`${API_BASE}/agents/${agentId}/deploy`, {
-    method: "POST",
-  });
-  if (!res.ok) {
-    throw new Error(`Deploy failed: ${res.status}`);
-  }
-  return res.json();
 }

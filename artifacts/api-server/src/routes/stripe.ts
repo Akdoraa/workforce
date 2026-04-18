@@ -1,11 +1,11 @@
 import { Router, type IRouter } from "express";
-import { getUncachableStripeClient } from "../lib/stripe";
+import { getStripeClient } from "../lib/registry/stripe";
 
 const router: IRouter = Router();
 
 router.get("/stripe/account", async (req, res) => {
   try {
-    const stripe = await getUncachableStripeClient();
+    const stripe = await getStripeClient();
     const account = await stripe.accounts.retrieve();
     res.json({
       connected: true,
@@ -28,7 +28,7 @@ router.get("/stripe/account", async (req, res) => {
 
 router.get("/stripe/balance", async (req, res) => {
   try {
-    const stripe = await getUncachableStripeClient();
+    const stripe = await getStripeClient();
     const balance = await stripe.balance.retrieve();
     res.json({
       available: balance.available.map((b) => ({ amount: b.amount, currency: b.currency })),
@@ -43,7 +43,7 @@ router.get("/stripe/balance", async (req, res) => {
 
 router.get("/stripe/charges", async (req, res) => {
   try {
-    const stripe = await getUncachableStripeClient();
+    const stripe = await getStripeClient();
     const limit = Math.min(Number(req.query.limit ?? 12), 100);
     const charges = await stripe.charges.list({ limit });
     res.json({
@@ -75,7 +75,7 @@ router.get("/stripe/charges", async (req, res) => {
 
 router.get("/stripe/customers", async (req, res) => {
   try {
-    const stripe = await getUncachableStripeClient();
+    const stripe = await getStripeClient();
     const limit = Math.min(Number(req.query.limit ?? 8), 100);
     const customers = await stripe.customers.list({ limit });
     res.json({
@@ -101,7 +101,7 @@ router.post("/stripe/refund", async (req, res) => {
       res.status(400).json({ error: "Invalid charge_id" });
       return;
     }
-    const stripe = await getUncachableStripeClient();
+    const stripe = await getStripeClient();
     const refund = await stripe.refunds.create({ charge: chargeId });
     res.json({
       id: refund.id,

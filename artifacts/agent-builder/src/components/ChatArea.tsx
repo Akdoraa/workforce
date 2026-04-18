@@ -14,7 +14,7 @@ export function ChatArea({ agent, onSendMessage, variant }: ChatAreaProps) {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const isBuilding = agent?.phase === "building-app";
+  const isBuilding = !!agent?.generating;
 
   useEffect(() => {
     if (scrollRef.current) {

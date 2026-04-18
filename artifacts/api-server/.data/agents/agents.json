@@ -1,0 +1,172 @@
+{
+  "agents": {
+    "test-melching": {
+      "id": "test-melching",
+      "blueprint": {
+        "name": "Test",
+        "role_summary": "",
+        "system_prompt": "Say hello and stop. Do not use any tools.",
+        "soul": "Brief.",
+        "agents_md": "Just say hello once.",
+        "watches": [],
+        "integrations": [],
+        "triggers": [
+          {
+            "id": "t1",
+            "description": "on demand",
+            "task": "Say hello."
+          }
+        ],
+        "tools": [],
+        "capabilities": [],
+        "memory": {
+          "enabled": false
+        },
+        "dashboard_layout": {
+          "sections": []
+        },
+        "status": "deployed",
+        "deployment": {
+          "id": "test-melching",
+          "url": "replit-app://test-melching"
+        }
+      },
+      "created_at": 1776492658228,
+      "paused": false,
+      "last_run_at": 1776492660532
+    },
+    "melching-bd": {
+      "id": "melching-bd",
+      "blueprint": {
+        "name": "Melching BD Tracker",
+        "role_summary": "Scans Gmail for prospect replies and updates HubSpot.",
+        "system_prompt": "You are the Melching BD Tracker. Use the tools to: (1) search Gmail for the most recent inbox messages, (2) for any sender email, search HubSpot contacts to see if they exist, (3) if a contact exists, log a note describing the email. Keep it short. Stop after one summary.",
+        "soul": "Crisp and factual.",
+        "agents_md": "Run once per request. Search Gmail for at most 5 recent inbox messages. For each, look up the sender in HubSpot. If found, log a note. Skip if not found. Always end with a short summary of what you did.",
+        "watches": [
+          "Gmail inbox replies",
+          "HubSpot contacts"
+        ],
+        "integrations": [
+          {
+            "id": "gmail",
+            "name": "Gmail",
+            "label": "your inbox",
+            "reason": "Read replies."
+          },
+          {
+            "id": "hubspot",
+            "name": "HubSpot",
+            "label": "your customer list",
+            "reason": "Look up contacts and log notes."
+          }
+        ],
+        "triggers": [
+          {
+            "id": "t1",
+            "description": "On demand",
+            "task": "Check the last 5 inbox messages and log any matching contact in HubSpot."
+          }
+        ],
+        "tools": [
+          {
+            "id": "x1",
+            "name": "Search inbox threads",
+            "primitive": "gmail_search_threads",
+            "description": "Search Gmail."
+          },
+          {
+            "id": "x2",
+            "name": "Read a thread",
+            "primitive": "gmail_get_thread",
+            "description": "Read Gmail thread bodies."
+          },
+          {
+            "id": "x3",
+            "name": "Search contacts",
+            "primitive": "hubspot_search_contacts",
+            "description": "Search HubSpot contacts."
+          },
+          {
+            "id": "x4",
+            "name": "Log note",
+            "primitive": "hubspot_log_note",
+            "description": "Log note on a contact."
+          }
+        ],
+        "capabilities": [],
+        "memory": {
+          "enabled": false
+        },
+        "dashboard_layout": {
+          "sections": []
+        },
+        "status": "deployed",
+        "deployment": {
+          "id": "melching-bd",
+          "url": "replit-app://melching-bd"
+        }
+      },
+      "created_at": 1776493344684,
+      "paused": false,
+      "last_run_at": 1776493413026
+    },
+    "hubspot-validator": {
+      "id": "hubspot-validator",
+      "blueprint": {
+        "name": "HubSpot CRM Touch",
+        "role_summary": "Lists HubSpot contacts and logs a note on the first one.",
+        "system_prompt": "You are a HubSpot CRM helper. Use tools to: (1) list contacts (limit 1), (2) log a short note on that contact saying 'Touched by Melching BD assistant on validation run.', (3) return a one-line summary. Stop after one cycle.",
+        "soul": "Brief.",
+        "agents_md": "Run once. List 1 contact. Log a short note on them. Return summary.",
+        "watches": [
+          "HubSpot contacts"
+        ],
+        "integrations": [
+          {
+            "id": "hubspot",
+            "name": "HubSpot",
+            "label": "your customer list",
+            "reason": "Real CRM writes."
+          }
+        ],
+        "triggers": [
+          {
+            "id": "t1",
+            "description": "On demand",
+            "task": "List 1 HubSpot contact and log a note on them."
+          }
+        ],
+        "tools": [
+          {
+            "id": "x1",
+            "name": "Search contacts",
+            "primitive": "hubspot_search_contacts",
+            "description": "Search HubSpot contacts."
+          },
+          {
+            "id": "x2",
+            "name": "Log note",
+            "primitive": "hubspot_log_note",
+            "description": "Log note."
+          }
+        ],
+        "capabilities": [],
+        "memory": {
+          "enabled": false
+        },
+        "dashboard_layout": {
+          "sections": []
+        },
+        "status": "deployed",
+        "deployment": {
+          "id": "hubspot-validator",
+          "url": "replit-app://hubspot-validator"
+        }
+      },
+      "created_at": 1776493436372,
+      "paused": false,
+      "last_run_at": 1776493443852
+    }
+  }
+}

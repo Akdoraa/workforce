@@ -1,13 +1,9 @@
 import { useAgentStore } from "@/lib/store";
-import {
-  handleUserPrompt,
-  connectStripe,
-  toggleRunning,
-  disconnect,
-} from "@/lib/agent-logic";
+import { runBuilderTurn, deployFromBlueprint } from "@/lib/agent-logic";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatArea } from "@/components/ChatArea";
-import { RightPanel } from "@/components/RightPanel";
+import { BlueprintPreview } from "@/components/BlueprintPreview";
+import { DeployedAgentDashboard } from "@/components/DeployedAgent";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -21,37 +17,28 @@ function App() {
 
   const handleSend = (text: string) => {
     if (!agent) return;
-    handleUserPrompt({
-      text,
+    void runBuilderTurn({
+      agent,
+      userText: text,
+      updateAgent: store.updateAgent,
+      addMessageTo: store.addMessageTo,
+      appendToMessage: store.appendToMessage,
+      patchBlueprint: store.patchBlueprint,
+    });
+  };
+
+  const handleDeploy = () => {
+    if (!agent) return;
+    void deployFromBlueprint({
       agent,
       updateAgent: store.updateAgent,
       addMessageTo: store.addMessageTo,
     });
   };
 
-  const handleConnect = async () => {
+  const handleClose = () => {
     if (!agent) return;
-    if (agent.service === "stripe") {
-      await connectStripe({
-        agent,
-        updateAgent: store.updateAgent,
-        addMessageTo: store.addMessageTo,
-      });
-    }
-  };
-
-  const handleToggleRunning = () => {
-    if (!agent) return;
-    toggleRunning({ agent, updateAgent: store.updateAgent });
-  };
-
-  const handleDisconnect = () => {
-    if (!agent) return;
-    disconnect({
-      agent,
-      updateAgent: store.updateAgent,
-      addMessageTo: store.addMessageTo,
-    });
+    store.updateAgent(agent.id, { phase: "welcome" });
   };
 
   return (
@@ -72,12 +59,18 @@ function App() {
             </ResizablePanel>
             <ResizableHandle />
             <ResizablePanel defaultSize={48} minSize={30}>
-              <RightPanel
-                agent={agent}
-                onConnect={handleConnect}
-                onToggleRunning={handleToggleRunning}
-                onDisconnect={handleDisconnect}
-              />
+              {agent.phase === "deployed" && agent.deploymentId ? (
+                <DeployedAgentDashboard
+                  deploymentId={agent.deploymentId}
+                  onDisconnect={handleClose}
+                />
+              ) : (
+                <BlueprintPreview
+                  blueprint={agent.blueprint}
+                  deploying={agent.status === "Deploying"}
+                  onDeploy={handleDeploy}
+                />
+              )}
             </ResizablePanel>
           </>
         ) : (

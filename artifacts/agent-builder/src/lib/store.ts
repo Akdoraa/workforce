@@ -5,28 +5,14 @@ import {
   type BlueprintPatch,
 } from "@workspace/api-zod";
 
-export type Status = "Building" | "Active" | "Needs Input" | "Deploying" | "Deployed";
-export type Service = "stripe" | "jira" | "slack" | "generic";
-export type Phase =
-  | "welcome"
-  | "awaiting-credentials"
-  | "building-app"
-  | "app-ready";
+export type Status = "Drafting" | "Ready" | "Deploying" | "Deployed";
+export type Phase = "welcome" | "building" | "deployed";
 
 export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: number;
-}
-
-export interface Connection {
-  service: Service;
-  email: string | null;
-  account_id: string;
-  business_name: string | null;
-  livemode: boolean;
-  connected_at: number;
 }
 
 export interface Agent {
@@ -36,16 +22,18 @@ export interface Agent {
   messages: Message[];
   blueprint: Blueprint;
   createdAt: number;
-  prompt?: string;
   phase: Phase;
-  service: Service | null;
-  appName: string | null;
-  connection: Connection | null;
-  isRunning: boolean;
+  deploymentId: string | null;
+  /** A streaming generation is in flight when truthy. */
+  generating: boolean;
 }
 
-const STORAGE_KEY = "agent-builder-state-v3";
-const LEGACY_KEYS = ["agent-builder-state", "agent-builder-state-v2"];
+const STORAGE_KEY = "agent-builder-state-v4";
+const LEGACY_KEYS = [
+  "agent-builder-state",
+  "agent-builder-state-v2",
+  "agent-builder-state-v3",
+];
 
 interface AppState {
   agents: Record<string, Agent>;
@@ -57,15 +45,13 @@ const createDefaultAgent = (): Agent => {
   return {
     id,
     name: "New Agent",
-    status: "Needs Input",
+    status: "Drafting",
     messages: [],
     blueprint: emptyBlueprint(),
     createdAt: Date.now(),
     phase: "welcome",
-    service: null,
-    appName: null,
-    connection: null,
-    isRunning: false,
+    deploymentId: null,
+    generating: false,
   };
 };
 
@@ -77,23 +63,20 @@ function normalizeAgent(raw: unknown): Agent | null {
   const blueprint = blueprintParsed.success
     ? blueprintParsed.data
     : emptyBlueprint();
-  const phase = (r["phase"] as Phase) ?? "welcome";
-  const service = (r["service"] as Service | null) ?? null;
-  const connection = (r["connection"] as Connection | null) ?? null;
   return {
     id: r["id"] as string,
     name: typeof r["name"] === "string" ? (r["name"] as string) : blueprint.name,
-    status: (r["status"] as Status) ?? "Needs Input",
+    status: (r["status"] as Status) ?? "Drafting",
     messages: Array.isArray(r["messages"]) ? (r["messages"] as Message[]) : [],
     blueprint,
     createdAt:
       typeof r["createdAt"] === "number" ? (r["createdAt"] as number) : Date.now(),
-    prompt: typeof r["prompt"] === "string" ? (r["prompt"] as string) : undefined,
-    phase,
-    service,
-    appName: typeof r["appName"] === "string" ? (r["appName"] as string) : null,
-    connection,
-    isRunning: Boolean(r["isRunning"]),
+    phase: (r["phase"] as Phase) ?? "welcome",
+    deploymentId:
+      typeof r["deploymentId"] === "string"
+        ? (r["deploymentId"] as string)
+        : null,
+    generating: false,
   };
 }
 
@@ -157,10 +140,7 @@ export function useAgentStore() {
         if (!target) return s;
         return {
           ...s,
-          agents: {
-            ...s.agents,
-            [agentId]: { ...target, ...updates },
-          },
+          agents: { ...s.agents, [agentId]: { ...target, ...updates } },
         };
       });
     },
@@ -174,14 +154,25 @@ export function useAgentStore() {
         if (!target) return s;
         const merged = Blueprint.parse({ ...target.blueprint, ...patch });
         const nextName =
-          patch.name && patch.name.trim().length > 0
-            ? patch.name
-            : target.name;
+          patch.name && patch.name.trim().length > 0 ? patch.name : target.name;
+        const nextStatus: Status =
+          merged.status === "deployed"
+            ? "Deployed"
+            : merged.status === "ready"
+              ? "Ready"
+              : merged.status === "deploying"
+                ? "Deploying"
+                : "Drafting";
         return {
           ...s,
           agents: {
             ...s.agents,
-            [agentId]: { ...target, blueprint: merged, name: nextName },
+            [agentId]: {
+              ...target,
+              blueprint: merged,
+              name: nextName,
+              status: nextStatus,
+            },
           },
         };
       });

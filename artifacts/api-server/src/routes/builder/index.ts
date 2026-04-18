@@ -8,7 +8,7 @@ import {
   type BuilderStreamEvent,
 } from "@workspace/api-zod";
 import {
-  BUILDER_SYSTEM_PROMPT,
+  buildSystemPrompt,
   BUILDER_TOOLS,
   executeBuilderTool,
 } from "./tools";
@@ -59,7 +59,7 @@ router.post("/builder/chat", async (req, res) => {
 
   try {
     for (let turn = 0; turn < MAX_LOOP_TURNS; turn++) {
-      const systemPrompt = `${BUILDER_SYSTEM_PROMPT}\n\nCURRENT BLUEPRINT:\n${summarizeBlueprint(blueprint)}`;
+      const systemPrompt = `${buildSystemPrompt()}\n\nCURRENT BLUEPRINT:\n${summarizeBlueprint(blueprint)}`;
 
       const stream = anthropic.messages.stream({
         model: "claude-sonnet-4-6",

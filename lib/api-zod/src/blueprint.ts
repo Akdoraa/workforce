@@ -11,6 +11,7 @@ export type BlueprintStatus = z.infer<typeof BlueprintStatus>;
 export const BlueprintIntegration = z.object({
   id: z.string(),
   name: z.string(),
+  label: z.string().optional(),
   reason: z.string().optional(),
 });
 export type BlueprintIntegration = z.infer<typeof BlueprintIntegration>;
@@ -18,12 +19,16 @@ export type BlueprintIntegration = z.infer<typeof BlueprintIntegration>;
 export const BlueprintTrigger = z.object({
   id: z.string(),
   description: z.string(),
+  cron: z.string().optional(),
+  timezone: z.string().optional(),
+  task: z.string().optional(),
 });
 export type BlueprintTrigger = z.infer<typeof BlueprintTrigger>;
 
 export const BlueprintTool = z.object({
   id: z.string(),
   name: z.string(),
+  primitive: z.string().optional(),
   description: z.string().optional(),
 });
 export type BlueprintTool = z.infer<typeof BlueprintTool>;
@@ -48,7 +53,11 @@ export type BlueprintDashboardLayout = z.infer<typeof BlueprintDashboardLayout>;
 
 export const Blueprint = z.object({
   name: z.string(),
+  role_summary: z.string().default(""),
   system_prompt: z.string(),
+  soul: z.string().default(""),
+  agents_md: z.string().default(""),
+  watches: z.array(z.string()).default([]),
   integrations: z.array(BlueprintIntegration).default([]),
   triggers: z.array(BlueprintTrigger).default([]),
   tools: z.array(BlueprintTool).default([]),
@@ -97,10 +106,41 @@ export const DeployAgentResponse = z.object({
 });
 export type DeployAgentResponse = z.infer<typeof DeployAgentResponse>;
 
+export const ActivityEvent = z.object({
+  id: z.string(),
+  ts: z.number(),
+  run_id: z.string().nullable().default(null),
+  kind: z.enum([
+    "run_start",
+    "run_end",
+    "thought",
+    "tool_call",
+    "tool_result",
+    "info",
+    "error",
+  ]),
+  text: z.string(),
+  details: z.record(z.string(), z.unknown()).optional(),
+});
+export type ActivityEvent = z.infer<typeof ActivityEvent>;
+
+export const DeployedAgent = z.object({
+  id: z.string(),
+  blueprint: Blueprint,
+  created_at: z.number(),
+  paused: z.boolean().default(false),
+  last_run_at: z.number().nullable().default(null),
+});
+export type DeployedAgent = z.infer<typeof DeployedAgent>;
+
 export function emptyBlueprint(): Blueprint {
   return Blueprint.parse({
     name: "New Agent",
+    role_summary: "",
     system_prompt: "",
+    soul: "",
+    agents_md: "",
+    watches: [],
     integrations: [],
     triggers: [],
     tools: [],
