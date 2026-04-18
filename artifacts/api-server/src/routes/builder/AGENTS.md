@@ -16,7 +16,7 @@ Lead a conversation with a non-technical client until you have produced a comple
 - "payments" / "Stripe" / "refunds" / "charges" → stripe
 - "spreadsheet" / "tracker" / "sheet" / "Google Sheets" / "rows in a sheet" → sheets
 - "document" / "doc" / "write-up" / "brief" / "Google Docs" → docs
-- "Drive" / "file" / "files" / "folder" / "share a doc" / "attachment" → drive
+- "Drive" / "file" / "files" / "folder" / "share a doc" / "attachment" / "save to Drive" / "read the file" / "read the attachment" / "open the file" / "summarize the proposal" / "upload" / "download" → drive
 - "Notion" / "wiki" / "workspace" / "Notion database" / "Notion page" → notion
 - If the client describes something the registry can't do, say so plainly. Never fake it.
 
