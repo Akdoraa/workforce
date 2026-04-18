@@ -1,6 +1,8 @@
 import {
   getDeployedAgent,
   listDeployedAgents,
+  loadSchedulerState,
+  saveSchedulerState,
   updateDeployment,
 } from "./store";
 import { runAgent } from "./executor";
@@ -130,8 +132,39 @@ export function describeCron(
 
 let timer: NodeJS.Timeout | null = null;
 const lastFired = new Map<string, number>();
+let stateLoaded: Promise<void> | null = null;
+
+function ensureStateLoaded(): Promise<void> {
+  if (!stateLoaded) {
+    stateLoaded = loadSchedulerState()
+      .then((persisted) => {
+        for (const [k, v] of Object.entries(persisted)) {
+          lastFired.set(k, v);
+        }
+        logger.info(
+          { entries: Object.keys(persisted).length },
+          "Restored scheduler last-fired state",
+        );
+      })
+      .catch((err) => {
+        logger.warn({ err }, "Failed to load scheduler state");
+      });
+  }
+  return stateLoaded;
+}
+
+async function persistLastFired(): Promise<void> {
+  const obj: Record<string, number> = {};
+  for (const [k, v] of lastFired.entries()) obj[k] = v;
+  try {
+    await saveSchedulerState(obj);
+  } catch (err) {
+    logger.warn({ err }, "Failed to persist scheduler state");
+  }
+}
 
 async function runDueTriggers(): Promise<void> {
+  await ensureStateLoaded();
   const agents = await listDeployedAgents();
   const now = new Date();
   for (const agent of agents) {
@@ -151,6 +184,7 @@ async function runDueTriggers(): Promise<void> {
       }
       if (!matches) continue;
       lastFired.set(key, minuteBucket);
+      await persistLastFired();
       const task = trig.task ?? trig.description;
       logger.info({ agent: agent.id, trig: trig.id }, "Trigger firing");
       void runAgent(agent, task, trig)
@@ -167,6 +201,7 @@ async function runDueTriggers(): Promise<void> {
 
 export function startScheduler(): void {
   if (timer) return;
+  void ensureStateLoaded();
   timer = setInterval(() => {
     void runDueTriggers();
   }, 30_000);

@@ -13,6 +13,7 @@ const DATA_DIR = process.env.AGENT_RUNTIME_DIR
   : path.resolve(process.cwd(), ".data", "agents");
 const AGENTS_FILE = path.join(DATA_DIR, "agents.json");
 const ACTIVITY_DIR = path.join(DATA_DIR, "activity");
+const SCHEDULER_FILE = path.join(DATA_DIR, "scheduler.json");
 
 function ensureDirSync() {
   fsSync.mkdirSync(ACTIVITY_DIR, { recursive: true });
@@ -120,6 +121,49 @@ export async function deleteDeployment(id: string): Promise<boolean> {
   delete state.agents[id];
   await persist();
   return true;
+}
+
+// -------- Scheduler last-fired persistence --------
+
+export async function loadSchedulerState(): Promise<Record<string, number>> {
+  try {
+    const raw = await fs.readFile(SCHEDULER_FILE, "utf-8");
+    const parsed = JSON.parse(raw);
+    const out: Record<string, number> = {};
+    if (parsed && typeof parsed === "object" && parsed.last_fired) {
+      for (const [k, v] of Object.entries(parsed.last_fired)) {
+        if (typeof v === "number") out[k] = v;
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+let schedulerSaveQueue: Promise<void> = Promise.resolve();
+export function saveSchedulerState(
+  lastFired: Record<string, number>,
+): Promise<void> {
+  const next = schedulerSaveQueue.then(
+    async () => {
+      await fs.mkdir(DATA_DIR, { recursive: true });
+      await fs.writeFile(
+        SCHEDULER_FILE,
+        JSON.stringify({ last_fired: lastFired }, null, 2),
+      );
+    },
+    async () => {
+      // Recover from a previous failed write so future saves can proceed.
+      await fs.mkdir(DATA_DIR, { recursive: true });
+      await fs.writeFile(
+        SCHEDULER_FILE,
+        JSON.stringify({ last_fired: lastFired }, null, 2),
+      );
+    },
+  );
+  schedulerSaveQueue = next.catch(() => undefined);
+  return next;
 }
 
 // -------- Activity log --------
