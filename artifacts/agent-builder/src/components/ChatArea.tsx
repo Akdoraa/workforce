@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Agent, ToolConnection } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowUp, Bot, Plug, User } from "lucide-react";
+import { ArrowUp, Bot, User } from "lucide-react";
 import { ToolsModal } from "./ToolsModal";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -101,8 +101,7 @@ export function ChatArea({ agent, onSendMessage, tools, onUpdateTools }: ChatAre
               className="rounded-full bg-background border-border text-xs text-muted-foreground hover:text-foreground h-7"
               onClick={() => setIsToolsOpen(true)}
             >
-              <Plug className="h-3.5 w-3.5 mr-1.5" />
-              Connect Tools
+              + Connect Tools
             </Button>
           </div>
           

@@ -1,0 +1,83 @@
+Replit Hackathon Project Brief — Agent Builder Platform
+Context
+I'm in a Replit Hackathon. I'm in charge of system design. I need to build and deploy this on Replit.
+The Problem
+Most AI agents come useless fresh out of the box — no existing workflows, the client has to build them. Most people running businesses can't code, but they want to leverage AI in their business. We provide a comfortable solution and interface to build and deploy custom agents that integrate into existing workflows.
+The Solution
+An onboarding/chat interface where the client describes the type of agent they need and which integrations their company uses. The agent asks smart questions to bridge what's currently possible with agents to the client's existing business — not just building what they ask for, but proposing more on top of it. An OpenClaw-powered builder agent understands the client's workflow, then plans, builds, and deploys a custom agent with a simple dashboard visualizing all its functionalities.
+Flow: Conversation between builder agent and client (planning mode) → builder agent connects the client's workspace integrations into the created agent → product is an agent hosted on a dedicated server.
+Hackathon Criteria
+
+Flawless, clean, technically impressive end product
+Make the most of Replit's end-to-end workflows
+Best business model
+
+
+System Design (Confirmed Direction)
+Core Architectural Insight
+Each agent a client builds becomes its own Replit Deployment, spun up programmatically by the builder agent. This collapses "where does the agent live?" into a demo-able 60-second loop: chat → spec → fresh Repl → live agent. This is the hackathon-winning move because it uses Replit as the deployment substrate itself.
+Four-Tier Architecture
+Tier 1 — Planning: Chat UI → Builder Agent (OpenClaw) → Blueprint (JSON spec)
+Tier 2 — Build/Deploy: Blueprint → Code Generator → Replit Deploy API
+Tier 3 — Runtime: Agent #1, #2, #N (each its own Repl) ↔ MCP Integrations
+Tier 4 — Observability: All agents stream logs to central Dashboard → loops back to edit Blueprint and redeploy
+The Five Components
+1. Chat UI
+Streaming chat on Next.js or React. Thin layer. Conversation feeds directly into the Builder Agent's context.
+2. Builder Agent (OpenClaw)
+The meta-agent. Its job isn't to answer questions — it's to extract a Blueprint. Equip it with tools:
+
+ask_clarifying_question
+suggest_integration
+propose_capability
+finalize_blueprint
+
+Prompt it to push past what the client asks for. If they say "an agent that answers customer emails," it should propose "...and flags angry ones to Slack, and opens tickets in your CRM." The "something more on top of it" requirement from the brief lives here.
+3. Blueprint (JSON Spec)
+The artifact that planning mode produces. Single source of truth — the Blueprint IS the agent; everything else is a projection of it. Schema:
+json{
+  "name": "Support triager",
+  "system_prompt": "...",
+  "integrations": ["gmail", "slack", "notion"],
+  "triggers": [
+    {"type": "email_received"},
+    {"type": "cron", "expr": "0 9 * * *"}
+  ],
+  "tools": ["send_email", "post_slack", "create_notion_page"],
+  "memory": {"type": "vector", "source": "docs_folder"},
+  "dashboard_layout": {...}
+}
+4. Generator + Deploy
+Takes the Blueprint, templates a Replit project (main.py, .replit, MCP config, env file), calls the Replit API to create and deploy a new Repl. This is the magic moment in the demo — a new agent materializing as a fresh Repl in 60 seconds.
+5. Agent Runtime
+Each client's agent runs as its own Replit Deployment with its own endpoint. Connects to their integrations via MCP. Logs stream back to the central dashboard. Isolation matters for the security pitch — one client's OAuth tokens never live in another client's process.
+6. Dashboard
+Lists all deployed agents, live activity, token spend. Critically: lets clients edit the Blueprint and redeploy. The iteration loop is a killer feature — "agent isn't quite right? Edit in plain English, redeploy in 30s."
+Replit Leverage (the "end-to-end workflows" criterion)
+Most hackathon projects touch one or two Replit surfaces. Hit six:
+
+Replit Auth — user sign-in
+Replit API — programmatically create a fresh Repl per agent (this is the demo moment)
+Replit Deployments — always-on hosting per agent
+Replit Secrets — isolate each client's OAuth tokens per-agent (strong security story)
+Replit DB / Postgres — blueprints, users, logs
+Replit's deployment logs — piped into the dashboard for observability
+
+Demo narrative: "I log in on Replit, I build an agent on Replit, and the agent is hosted and running on Replit — every surface, top to bottom."
+Business Model
+Tiered SaaS — judges understand it instantly, fits non-technical SMB owners who want predictable monthly costs.
+TierPriceIncludesFree$01 agent, 10 runs/day, 1 integration (acquisition hook)Starter$49/mo1 agent, unlimited runs, 3 integrationsBusiness$199/moUp to 5 agents, all integrations, team seats, priority deployEnterpriseCustomWhite-label, SLA, dedicated infra
+Pitch math: 500 Starter subs ≈ $294K ARR. Natural upsell — once a client sees one agent work, they want three more (support triage, lead qualification, weekly ops digest).
+Moat: MCP integration library + Builder Agent's interview playbooks tuned by vertical (CPG founder vs law firm vs e-comm brand).
+Demo Day Priority Order (48hrs)
+
+Planning-mode chat → Blueprint works cleanly
+One-click deploy actually spins up a new Repl live on stage
+Deployed agent does one real thing with one real integration (Gmail triage is cleanest)
+Dashboard shows the log stream
+Edit-and-redeploy works
+
+Everything else is polish.
+
+Where I Am Now
+System design is locked. I need to start building. Help me execute — starting with scaffolding the repo structure, the Blueprint schema, the Builder Agent's tool definitions and system prompt, and the Replit API integration for programmatic Repl creation. Open questions I still need to work through: Blueprint schema details, Builder Agent tool set and system prompt, Generator templating approach, and the MCP integration layer.
