@@ -6,12 +6,27 @@ import {
 } from "@workspace/api-zod";
 
 export type Status = "Building" | "Active" | "Needs Input" | "Deploying" | "Deployed";
+export type Service = "stripe" | "jira" | "slack" | "generic";
+export type Phase =
+  | "welcome"
+  | "awaiting-credentials"
+  | "building-app"
+  | "app-ready";
 
 export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: number;
+}
+
+export interface Connection {
+  service: Service;
+  email: string | null;
+  account_id: string;
+  business_name: string | null;
+  livemode: boolean;
+  connected_at: number;
 }
 
 export interface Agent {
@@ -22,10 +37,15 @@ export interface Agent {
   blueprint: Blueprint;
   createdAt: number;
   prompt?: string;
+  phase: Phase;
+  service: Service | null;
+  appName: string | null;
+  connection: Connection | null;
+  isRunning: boolean;
 }
 
-const STORAGE_KEY = "agent-builder-state-v2";
-const LEGACY_KEY = "agent-builder-state";
+const STORAGE_KEY = "agent-builder-state-v3";
+const LEGACY_KEYS = ["agent-builder-state", "agent-builder-state-v2"];
 
 interface AppState {
   agents: Record<string, Agent>;
@@ -41,6 +61,11 @@ const createDefaultAgent = (): Agent => {
     messages: [],
     blueprint: emptyBlueprint(),
     createdAt: Date.now(),
+    phase: "welcome",
+    service: null,
+    appName: null,
+    connection: null,
+    isRunning: false,
   };
 };
 
@@ -52,6 +77,9 @@ function normalizeAgent(raw: unknown): Agent | null {
   const blueprint = blueprintParsed.success
     ? blueprintParsed.data
     : emptyBlueprint();
+  const phase = (r["phase"] as Phase) ?? "welcome";
+  const service = (r["service"] as Service | null) ?? null;
+  const connection = (r["connection"] as Connection | null) ?? null;
   return {
     id: r["id"] as string,
     name: typeof r["name"] === "string" ? (r["name"] as string) : blueprint.name,
@@ -59,14 +87,19 @@ function normalizeAgent(raw: unknown): Agent | null {
     messages: Array.isArray(r["messages"]) ? (r["messages"] as Message[]) : [],
     blueprint,
     createdAt:
-      typeof r["createdAt"] === "number"
-        ? (r["createdAt"] as number)
-        : Date.now(),
+      typeof r["createdAt"] === "number" ? (r["createdAt"] as number) : Date.now(),
+    prompt: typeof r["prompt"] === "string" ? (r["prompt"] as string) : undefined,
+    phase,
+    service,
+    appName: typeof r["appName"] === "string" ? (r["appName"] as string) : null,
+    connection,
+    isRunning: Boolean(r["isRunning"]),
   };
 }
 
 function loadState(): AppState {
   try {
+    for (const k of LEGACY_KEYS) sessionStorage.removeItem(k);
     const stored = sessionStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored) as AppState;
@@ -83,7 +116,6 @@ function loadState(): AppState {
         return { agents, currentAgentId };
       }
     }
-    sessionStorage.removeItem(LEGACY_KEY);
   } catch (e) {
     console.error("Failed to load state", e);
   }

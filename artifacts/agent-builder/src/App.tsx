@@ -1,8 +1,13 @@
 import { useAgentStore } from "@/lib/store";
-import { runBuilderTurn } from "@/lib/agent-logic";
+import {
+  handleUserPrompt,
+  connectStripe,
+  toggleRunning,
+  disconnect,
+} from "@/lib/agent-logic";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatArea } from "@/components/ChatArea";
-import { BlueprintPreview } from "@/components/BlueprintPreview";
+import { RightPanel } from "@/components/RightPanel";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -12,17 +17,40 @@ import {
 function App() {
   const store = useAgentStore();
   const agent = store.currentAgent;
-  const hasStarted = !!agent && agent.messages.length > 0;
+  const hasStarted = !!agent && agent.phase !== "welcome";
 
   const handleSend = (text: string) => {
     if (!agent) return;
-    runBuilderTurn({
-      userText: text,
+    handleUserPrompt({
+      text,
       agent,
       updateAgent: store.updateAgent,
-      patchBlueprint: store.patchBlueprint,
       addMessageTo: store.addMessageTo,
-      appendToMessage: store.appendToMessage,
+    });
+  };
+
+  const handleConnect = async () => {
+    if (!agent) return;
+    if (agent.service === "stripe") {
+      await connectStripe({
+        agent,
+        updateAgent: store.updateAgent,
+        addMessageTo: store.addMessageTo,
+      });
+    }
+  };
+
+  const handleToggleRunning = () => {
+    if (!agent) return;
+    toggleRunning({ agent, updateAgent: store.updateAgent });
+  };
+
+  const handleDisconnect = () => {
+    if (!agent) return;
+    disconnect({
+      agent,
+      updateAgent: store.updateAgent,
+      addMessageTo: store.addMessageTo,
     });
   };
 
@@ -44,11 +72,11 @@ function App() {
             </ResizablePanel>
             <ResizableHandle />
             <ResizablePanel defaultSize={48} minSize={30}>
-              <BlueprintPreview
+              <RightPanel
                 agent={agent}
-                onUpdateAgent={(updates) =>
-                  store.updateAgent(agent.id, updates)
-                }
+                onConnect={handleConnect}
+                onToggleRunning={handleToggleRunning}
+                onDisconnect={handleDisconnect}
               />
             </ResizablePanel>
           </>
