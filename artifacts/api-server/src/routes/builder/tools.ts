@@ -66,6 +66,31 @@ export const BUILDER_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "remove_integration",
+    description: `Remove an integration the assistant no longer needs. The id MUST be one of: ${INTEGRATIONS.map((i) => i.id).join(", ")}. This also removes any tools that depend on that integration.`,
+    input_schema: {
+      type: "object",
+      properties: {
+        id: { type: "string", enum: INTEGRATIONS.map((i) => i.id) },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "remove_tool",
+    description: `Remove a previously added capability. The primitive name MUST be one of: ${PRIMITIVES.map((p) => p.name).join(", ")}.`,
+    input_schema: {
+      type: "object",
+      properties: {
+        primitive: {
+          type: "string",
+          enum: PRIMITIVES.map((p) => p.name),
+        },
+      },
+      required: ["primitive"],
+    },
+  },
+  {
     name: "add_tool",
     description: `Give the agent a capability by selecting a primitive from the registry. The primitive name MUST be one of: ${PRIMITIVES.map((p) => p.name).join(", ")}.`,
     input_schema: {
@@ -214,6 +239,55 @@ export function executeBuilderTool(
       return {
         patch: { integrations: next },
         resultText: `Added integration '${integ.name}'.`,
+      };
+    }
+
+    case "remove_integration": {
+      const id = String(args["id"] ?? "").toLowerCase();
+      if (!current.integrations.some((i) => i.id === id)) {
+        return {
+          patch: {},
+          resultText: `Integration '${id}' was not on the blueprint.`,
+        };
+      }
+      const integrations = current.integrations.filter((i) => i.id !== id);
+      // Drop any tools that depend on this integration.
+      const droppedTools: string[] = [];
+      const tools = current.tools.filter((t) => {
+        const primName = t.primitive ?? t.name;
+        const prim = findPrimitive(primName);
+        if (prim && prim.integration_id === id) {
+          droppedTools.push(t.name);
+          return false;
+        }
+        return true;
+      });
+      const suffix =
+        droppedTools.length > 0
+          ? ` Also removed dependent capabilities: ${droppedTools.join(", ")}.`
+          : "";
+      return {
+        patch: { integrations, tools },
+        resultText: `Removed integration '${id}'.${suffix}`,
+      };
+    }
+
+    case "remove_tool": {
+      const primitiveName = String(args["primitive"] ?? "");
+      const prim = findPrimitive(primitiveName);
+      const targetName = prim?.name ?? primitiveName;
+      if (!current.tools.some((t) => (t.primitive ?? t.name) === targetName)) {
+        return {
+          patch: {},
+          resultText: `Capability '${primitiveName}' was not on the blueprint.`,
+        };
+      }
+      const tools = current.tools.filter(
+        (t) => (t.primitive ?? t.name) !== targetName,
+      );
+      return {
+        patch: { tools },
+        resultText: `Removed capability '${prim?.label ?? primitiveName}'.`,
       };
     }
 
