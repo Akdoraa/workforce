@@ -73,6 +73,13 @@ export const Blueprint = z.object({
   // if absent. Both are wall-clock milliseconds.
   run_timeout_ms: z.number().int().positive().optional(),
   tool_timeout_ms: z.number().int().positive().optional(),
+  agent_runtime_model: z.enum([
+  "claude",
+  "root",
+  "gpt-4",
+  "gpt-3.5-turbo",
+  "groq",
+]).optional().default("claude"),
 });
 export type Blueprint = z.infer<typeof Blueprint>;
 

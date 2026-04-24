@@ -173,6 +173,21 @@ export const BUILDER_TOOLS: Anthropic.Tool[] = [
       properties: {},
     },
   },
+  {
+    name: "set_agent_runtime_model",
+    description: "Set which LLM the deployed agent will use. 'root' enables intelligent cost optimization (saves 50-70% on API calls). Other options: claude, gpt-4, gpt-3.5-turbo, groq.",
+    input_schema: {
+      type: "object",
+      properties: {
+        model: {
+          type: "string",
+          enum: ["claude", "root", "gpt-4", "gpt-3.5-turbo", "groq"],
+          description: "The LLM to power the agent. 'root' = intelligent routing (default).",
+        },
+      },
+      required: ["model"],
+    },
+  },
 ];
 
 export interface ToolExecution {
@@ -403,6 +418,22 @@ export function executeBuilderTool(
         resultText: "Blueprint finalized. The Deploy button is now visible.",
       };
     }
+
+    case "set_agent_runtime_model": {
+      const { model } = args as { model: string };
+      const validModels = ["claude", "root", "gpt-4", "gpt-3.5-turbo", "groq"];
+      if (!validModels.includes(model)) {
+        return {
+          patch: {},
+          resultText: `Error: '${model}' is not a valid model. Choose one of: ${validModels.join(", ")}.`,
+        };
+      }
+      return {
+        patch: { agent_runtime_model: model },
+        resultText: `Agent will use ${model === "root" ? "Root (intelligent routing - saves 50-70%)." : model + "."}`,
+      };
+    }
+
     default:
       return { patch: {}, resultText: `Unknown tool '${name}'.` };
   }

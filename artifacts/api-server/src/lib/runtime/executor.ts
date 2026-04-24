@@ -403,17 +403,46 @@ async function executeRun(
     }
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
-      const response = await untilDeadline(
-        anthropic.messages.create({
-          model: "claude-sonnet-4-6",
-          max_tokens: 4096,
-          system: systemPrompt,
-          tools: tools.length > 0 ? tools : undefined,
-          messages,
-        }),
-        deadline,
-        "model call",
-      );
+          let response;
+
+          if (agent.blueprint.agent_runtime_model === "root") {
+            // Use Root API for cost optimization
+            const rootResponse = await untilDeadline(
+              fetch("http://localhost:8000/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${process.env.ROOT_API_TOKEN || ""}`,
+                },
+                body: JSON.stringify({
+                  model: "auto",
+                  messages: messages.map((m) => ({
+                    role: m.role,
+                    content: typeof m.content === "string" ? m.content : m.content.map((c: any) => c.text || "").join(""),
+                  })),
+                  tools: tools.length > 0 ? convertAnthropicToolsToOpenAI(tools) : undefined,
+                  max_tokens: 4096,
+                }),
+              }).then((res) => res.json()),
+              deadline,
+              "Root API call",
+            );
+
+            response = convertOpenAIResponseToAnthropic(rootResponse);
+          } else {
+            // Use Claude (default)
+            response = await untilDeadline(
+              anthropic.messages.create({
+                model: "claude-sonnet-4-6",
+                max_tokens: 4096,
+                system: systemPrompt,
+                tools: tools.length > 0 ? tools : undefined,
+                messages,
+              }),
+              deadline,
+              "model call",
+            );
+          }
 
       const assistantBlocks = response.content;
       messages.push({ role: "assistant", content: assistantBlocks });
@@ -723,4 +752,57 @@ function humanizeRuntimeError(
     return `Couldn't ${action} — the record we were looking for wasn't there.`;
   }
   return `Couldn't ${action}. We've logged the details for review.`;
+}
+
+
+function convertAnthropicToolsToOpenAI(
+  tools: Anthropic.Tool[]
+): any[] {
+  return tools.map((tool) => ({
+    type: "function",
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.input_schema,
+    },
+  }));
+}
+
+function convertOpenAIResponseToAnthropic(
+  openaiResponse: any
+): Anthropic.Message {
+  const choice = openaiResponse.choices[0];
+  const content: Anthropic.ContentBlock[] = [];
+
+  if (choice.message.content) {
+    content.push({
+      type: "text",
+      text: choice.message.content,
+    });
+  }
+
+  if (choice.message.tool_calls) {
+    choice.message.tool_calls.forEach((tc: any) => {
+      content.push({
+        type: "tool_use",
+        id: tc.id,
+        name: tc.function.name,
+        input: JSON.parse(tc.function.arguments),
+      });
+    });
+  }
+
+  return {
+    id: openaiResponse.id,
+    type: "message",
+    role: "assistant",
+    content,
+    model: openaiResponse.model,
+    stop_reason: choice.finish_reason === "tool_calls" ? "tool_use" : "end_turn",
+    stop_sequence: null,
+    usage: {
+      input_tokens: openaiResponse.usage.prompt_tokens,
+      output_tokens: openaiResponse.usage.completion_tokens,
+    },
+  } as Anthropic.Message;
 }
